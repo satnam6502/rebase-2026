@@ -250,6 +250,7 @@ Sizes for 4-bit words, in slices (columns × rows):
 
 ```console
 $ make lean      # lake build: every definition and proof
+$ make test      # lake test: structural checks of the SystemVerilog emitter
 $ make sv        # SystemVerilog, testbenches and designs.tsv in build/sv (and LOC variants in build/sv_loc)
 $ make sim       # xsim against the Xilinx UNISIM models
 $ make impl      # Vivado place and route, and a placement check
@@ -258,7 +259,11 @@ $ make impl      # Vivado place and route, and a placement check
 - `make sim` needs Vivado's `xvlog`/`xelab`/`xsim` on the `PATH`. Each
   generated testbench drives random and corner-case words every cycle. It
   checks the outputs `latency` cycles later against a sort written in
-  SystemVerilog.
+  SystemVerilog. The random words are seeded with `+seed=<n>` (default 1), and
+  a failure reports its seed.
+- CI ([.github/workflows/lean.yml](.github/workflows/lean.yml)) runs
+  `lake build`, `lake test` and `ruby-sv` on every push and pull request.
+  Simulation and implementation need Vivado and are not run in CI.
 - `make impl` implements out of context on an `xc7a200tsbg484-1` at 250 MHz
   ([vivado/implement.tcl](vivado/implement.tcl)). It then compares every
   cell's placed site and BEL with the `RLOC`/`BEL` emitted from the Lean

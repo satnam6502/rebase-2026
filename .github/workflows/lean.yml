@@ -1,0 +1,33 @@
+name: Lean
+
+# Check every definition and proof, the emitter checks in RubyTest, and that
+# ruby-sv generates the SystemVerilog. Simulation and implementation need
+# Vivado and are run locally with `make sim` and `make impl`.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build and test
+        uses: leanprover/lean-action@v1
+        with:
+          build: true
+          test: true
+
+      - name: Generate SystemVerilog
+        run: |
+          lake exe ruby-sv build/sv
+          lake exe ruby-sv build/sv_loc --loc X36Y50
+          for d in build/sv build/sv_loc; do
+            test "$(tail -n +2 "$d/designs.tsv" | wc -l)" -eq 36
+          done
+          ! lake exe ruby-sv build/bad --loc x36y50

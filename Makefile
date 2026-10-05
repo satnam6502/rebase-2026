@@ -29,13 +29,17 @@ IMPL_DESIGNS ?= \
 IMPL_LOC_DESIGNS ?= \
   balanced64x4 periodic64x4 bitonic128x4 oddeven128x4 balanced128x4 periodic128x4
 
-.PHONY: all lean sv sim impl clean
+.PHONY: all lean test sv sim impl clean
 
-all: lean sv sim
+all: lean test sv sim
 
 ## Check every definition and proof.
 lean:
 	$(LAKE) build
+
+## Check the SystemVerilog emitter (RubyTest.lean).
+test:
+	$(LAKE) test
 
 ## Emit SystemVerilog modules, testbenches and designs.tsv: relocatable macros
 ## in build/sv, and the same layouts at ORIGIN with absolute LOCs in build/sv_loc.
