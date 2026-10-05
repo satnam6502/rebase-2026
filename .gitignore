@@ -1,0 +1,8 @@
+/.lake
+/build
+/obj_dir
+/vivado/*/
+*.jou
+*.log
+*.str
+.Xil/
