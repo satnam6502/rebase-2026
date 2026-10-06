@@ -1,5 +1,11 @@
 # ruby-lean
 
+[![Build](https://github.com/satnam6502/rebase-2026/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/satnam6502/rebase-2026/actions/workflows/build.yml)
+[![Test](https://github.com/satnam6502/rebase-2026/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/satnam6502/rebase-2026/actions/workflows/test.yml)
+[![Lean](https://img.shields.io/badge/Lean-v4.34.1-blue)](lean-toolchain)
+[![Mathlib](https://img.shields.io/badge/Mathlib-v4.34.1-blue)](lakefile.toml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
 A Ruby-style hardware description language embedded in Lean 4, with
 Batcher's sorters as the case study. The same circuit description yields:
 
@@ -250,15 +256,29 @@ Sizes for 4-bit words, in slices (columns × rows):
 
 ```console
 $ make lean      # lake build: every definition and proof
+$ make test      # lake test: structural checks of the SystemVerilog emitter
 $ make sv        # SystemVerilog, testbenches and designs.tsv in build/sv (and LOC variants in build/sv_loc)
 $ make sim       # xsim against the Xilinx UNISIM models
+$ make verilate  # Verilator against behavioural models of the primitives, no Vivado needed
 $ make impl      # Vivado place and route, and a placement check
 ```
 
 - `make sim` needs Vivado's `xvlog`/`xelab`/`xsim` on the `PATH`. Each
   generated testbench drives random and corner-case words every cycle. It
   checks the outputs `latency` cycles later against a sort written in
-  SystemVerilog.
+  SystemVerilog. The random words are seeded with `+seed=<n>` (default 1, or
+  `make sim SEED=<n>`), and a failure reports its seed.
+- `make verilate` runs the testbenches of the `SIM_DESIGNS` with Verilator against
+  behavioural models of `LUT1`–`LUT6`, `CARRY4` and `FDCE`
+  ([sim/unisim_models.sv](sim/unisim_models.sv)). It is quicker and needs no
+  Vivado, but `make sim` against the real UNISIM library remains the reference.
+- CI runs on every push and pull request.
+  [Build](.github/workflows/build.yml) runs `lake build` and `ruby-sv` (all 36
+  designs, both placements). [Test](.github/workflows/test.yml) runs
+  `lake test`, `make verilate` (the `SIM_DESIGNS`, relatively placed) and
+  [sim/selftest.sh](sim/selftest.sh), which checks that a deliberately broken
+  sorter fails its testbench and that seeds are reproducible.
+  `make sim` and `make impl` need Vivado and are not run in CI.
 - `make impl` implements out of context on an `xc7a200tsbg484-1` at 250 MHz
   ([vivado/implement.tcl](vivado/implement.tcl)). It then compares every
   cell's placed site and BEL with the `RLOC`/`BEL` emitted from the Lean
