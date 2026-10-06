@@ -13,14 +13,22 @@ def occurrences (s pat : String) : Nat := (s.splitOn pat).length - 1
 /-- `bitonic4x4`: a 4-word, 4-bit bitonic sorter of latency 3. -/
 def bitonic4x4 : SVModule := (bitonicSorter 1 2).svModule "bitonic4x4"
 
+/-- The number of primitive instances in a module: each carries one attribute list. -/
+def primitives (text : String) : Nat := occurrences text "(* DONT_TOUCH"
+
 #guard bitonic4x4.sequential
 #guard occurrences bitonic4x4.text "module bitonic4x4 (" == 1
 #guard occurrences bitonic4x4.text "input  logic clk" == 1
 #guard occurrences bitonic4x4.text "input  logic [3:0] [3:0] a" == 1
 #guard occurrences bitonic4x4.text "output logic [3:0] [3:0] b" == 1
 #guard occurrences bitonic4x4.text "endmodule : bitonic4x4" == 1
-#guard occurrences bitonic4x4.text "156 primitives" == 1
-#guard occurrences bitonic4x4.text "RLOC = " == 156
+-- The header's count is the number of instances, and each is one LUT, CARRY4 or FDCE.
+#guard primitives bitonic4x4.text > 0
+#guard occurrences bitonic4x4.text s!"// {primitives bitonic4x4.text} primitives" == 1
+#guard ["  LUT1 ", "  LUT2 ", "  LUT3 ", "  LUT4 ", "  LUT5 ", "  LUT6 ", "  CARRY4 ", "  FDCE "].foldl
+  (fun n p => n + occurrences bitonic4x4.text p) 0 == primitives bitonic4x4.text
+-- Relative placement: every instance has an `RLOC` and none has a `LOC`.
+#guard occurrences bitonic4x4.text "RLOC = " == primitives bitonic4x4.text
 #guard occurrences bitonic4x4.text "LOC = \"SLICE_" == 0
 
 /-- Each word is registered once per cycle of latency, so a sorter of `words`
@@ -36,7 +44,7 @@ def registersOk {s : Shape} (c : Circuit s s) (latency words bits : Nat) : Bool 
 /-- Absolute placement pins every primitive with a `LOC` and no `RLOC`. -/
 def bitonic4x4Loc : String := (bitonicSorter 1 2).toSystemVerilog "bitonic4x4" (.absolute 36 50)
 
-#guard occurrences bitonic4x4Loc "LOC = \"SLICE_" == 156
+#guard occurrences bitonic4x4Loc "LOC = \"SLICE_" == primitives bitonic4x4.text
 #guard occurrences bitonic4x4Loc "RLOC = " == 0
 #guard occurrences bitonic4x4Loc "LOC = \"SLICE_X36Y50\"" > 0
 

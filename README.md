@@ -253,17 +253,22 @@ $ make lean      # lake build: every definition and proof
 $ make test      # lake test: structural checks of the SystemVerilog emitter
 $ make sv        # SystemVerilog, testbenches and designs.tsv in build/sv (and LOC variants in build/sv_loc)
 $ make sim       # xsim against the Xilinx UNISIM models
+$ make verilate  # Verilator against behavioural models of the primitives, no Vivado needed
 $ make impl      # Vivado place and route, and a placement check
 ```
 
 - `make sim` needs Vivado's `xvlog`/`xelab`/`xsim` on the `PATH`. Each
   generated testbench drives random and corner-case words every cycle. It
   checks the outputs `latency` cycles later against a sort written in
-  SystemVerilog. The random words are seeded with `+seed=<n>` (default 1), and
-  a failure reports its seed.
+  SystemVerilog. The random words are seeded with `+seed=<n>` (default 1, or
+  `make sim SEED=<n>`), and a failure reports its seed.
+- `make verilate` runs the same testbenches with Verilator against
+  behavioural models of `LUT1`–`LUT6`, `CARRY4` and `FDCE`
+  ([sim/unisim_models.sv](sim/unisim_models.sv)). It is quicker and needs no
+  Vivado, but `make sim` against the real UNISIM library remains the reference.
 - CI ([.github/workflows/lean.yml](.github/workflows/lean.yml)) runs
-  `lake build`, `lake test` and `ruby-sv` on every push and pull request.
-  Simulation and implementation need Vivado and are not run in CI.
+  `lake build`, `lake test`, `ruby-sv` and `make verilate` on every push and
+  pull request. `make sim` and `make impl` need Vivado and are not run in CI.
 - `make impl` implements out of context on an `xc7a200tsbg484-1` at 250 MHz
   ([vivado/implement.tcl](vivado/implement.tcl)). It then compares every
   cell's placed site and BEL with the `RLOC`/`BEL` emitted from the Lean

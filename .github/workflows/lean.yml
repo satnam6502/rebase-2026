@@ -1,8 +1,8 @@
 name: Lean
 
 # Check every definition and proof, the emitter checks in RubyTest, and that
-# ruby-sv generates the SystemVerilog. Simulation and implementation need
-# Vivado and are run locally with `make sim` and `make impl`.
+# ruby-sv generates the SystemVerilog, then simulate it with Verilator.
+# `make sim` and `make impl` need Vivado and are run locally.
 on:
   push:
     branches: [main]
@@ -30,4 +30,34 @@ jobs:
           for d in build/sv build/sv_loc; do
             test "$(tail -n +2 "$d/designs.tsv" | wc -l)" -eq 36
           done
-          ! lake exe ruby-sv build/bad --loc x36y50
+          status=0
+          lake exe ruby-sv build/bad --loc x36y50 || status=$?
+          test "$status" -eq 1
+
+      - name: Upload SystemVerilog
+        uses: actions/upload-artifact@v7
+        with:
+          name: sv
+          path: build/sv
+
+  simulate:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download SystemVerilog
+        uses: actions/download-artifact@v8
+        with:
+          name: sv
+          path: build/sv
+
+      - name: Install Verilator
+        run: sudo apt-get update && sudo apt-get install -y verilator
+
+      # `-o sv`: use the downloaded SystemVerilog rather than regenerating it.
+      - name: Simulate with Verilator
+        run: make -o sv verilate

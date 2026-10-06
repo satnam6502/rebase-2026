@@ -168,6 +168,8 @@ module {name}_tb;
   initial begin
     a = '0;
     void'($value$plusargs(\"seed=%d\", seed));
+    // Seed this thread's generator (IEEE 1800 18.13.1). Verilator ignores
+    // process::srandom, but honours this.
     void'($urandom(seed));
     // Hold reset past the 100 ns global set/reset pulse of the UNISIM library.
     repeat (12) @(negedge clk);

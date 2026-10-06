@@ -4,9 +4,11 @@ LAKE   ?= lake
 SV     := build/sv
 SVLOC  := build/sv_loc
 SIMDIR := build/sim
+VLDIR  := build/verilator
 IMPL   := build/vivado
 IMPLOC := build/vivado_loc
 ORIGIN ?= X36Y50
+SEED   ?=
 
 # Designs simulated by `make sim` (all four sorter families, several sizes and widths).
 SIM_DESIGNS ?= \
@@ -29,7 +31,7 @@ IMPL_DESIGNS ?= \
 IMPL_LOC_DESIGNS ?= \
   balanced64x4 periodic64x4 bitonic128x4 oddeven128x4 balanced128x4 periodic128x4
 
-.PHONY: all lean test sv sim impl clean
+.PHONY: all lean test sv sim verilate impl clean
 
 all: lean test sv sim
 
@@ -47,9 +49,15 @@ sv:
 	$(LAKE) exe ruby-sv $(SV)
 	$(LAKE) exe ruby-sv $(SVLOC) --loc $(ORIGIN)
 
-## Simulate against the Xilinx UNISIM models with Vivado's xsim.
+## Simulate against the Xilinx UNISIM models with Vivado's xsim; `make sim SEED=n`
+## reruns the testbenches with another random seed.
 sim: sv
-	sim/simulate.sh $(SV) $(SIMDIR) $(SIM_DESIGNS)
+	SEED=$(SEED) sim/simulate.sh $(SV) $(SIMDIR) $(SIM_DESIGNS)
+
+## Simulate the same designs with Verilator against behavioural models of the
+## primitives (sim/unisim_models.sv), without Vivado.
+verilate: sv
+	SEED=$(SEED) sim/verilate.sh $(SV) $(VLDIR) $(SIM_DESIGNS)
 
 ## Place and route with Vivado, check the placement against the Lean layout,
 ## and tabulate the results.
