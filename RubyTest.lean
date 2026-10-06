@@ -57,3 +57,8 @@ def wires : SVModule := (idC : Circuit (.vec 4 (.vec 4 .bit)) (.vec 4 (.vec 4 .b
 #guard occurrences (sorterTestbench "wires" 4 4 0 200 false) "wires dut (.a(a), .b(b));" == 1
 #guard occurrences (sorterTestbench "bitonic4x4" 4 4 3 200)
   "bitonic4x4 dut (.clk(clk), .rstN(rstN), .a(a), .b(b));" == 1
+-- The testbench seeds its generator with `process::srandom`, except under
+-- Verilator, which ignores it: xsim rejects `$urandom(seed)` cast to `void`.
+#guard occurrences (sorterTestbench "bitonic4x4" 4 4 3 200)
+  "`ifdef VERILATOR\n    void'($urandom(seed));\n`else\n    process::self().srandom(seed);\n`endif\n" == 1
+#guard occurrences (sorterTestbench "bitonic4x4" 4 4 3 200) "void'($urandom" == 1
