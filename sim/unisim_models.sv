@@ -39,8 +39,9 @@ module CARRY4 (input logic CI, CYINIT, input logic [3:0] DI, S, output logic [3:
   assign CO = c[4:1];
 endmodule
 
-module FDCE #(parameter logic INIT = 1'b0) (input logic C, CE, CLR, D, output logic Q = INIT);
-  always_ff @(posedge C or posedge CLR)
+module FDCE #(parameter logic INIT = 1'b0) (input logic C, CE, CLR, D, output logic Q);
+  initial Q = INIT;
+  always @(posedge C or posedge CLR)
     if (CLR) Q <= 1'b0;
     else if (CE) Q <= D;
 endmodule

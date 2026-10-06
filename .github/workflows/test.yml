@@ -1,0 +1,34 @@
+name: Test
+
+# Check the SystemVerilog emitter (RubyTest), simulate the generated sorters
+# with Verilator, and check that the testbenches catch a broken sorter.
+# `make sim` and `make impl` need Vivado and are run locally. The runner is
+# pinned so that the Verilator version from apt changes only on purpose.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Emitter checks
+        uses: leanprover/lean-action@v1
+        with:
+          build: false
+          test: true
+
+      - name: Install Verilator
+        run: sudo apt-get update && sudo apt-get install -y verilator
+
+      - name: Simulate with Verilator
+        run: make verilate
+
+      - name: Check that the testbenches catch a broken sorter
+        run: sim/selftest.sh build/sv build/selftest

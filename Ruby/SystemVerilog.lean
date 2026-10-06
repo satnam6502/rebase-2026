@@ -137,8 +137,8 @@ module {name}_tb;
   // a combinational sorter's outputs are for the inputs of the previous cycle.
   localparam int D = (L > 0) ? L : 1;
 
-  logic clk = 1'b0;
-  logic rstN = 1'b0;
+  logic clk;
+  logic rstN;
   logic [N-1:0][W-1:0] a;
   logic [N-1:0][W-1:0] b;
   logic [N-1:0][W-1:0] expected [$];
@@ -166,6 +166,8 @@ module {name}_tb;
   endfunction
 
   initial begin
+    clk = 1'b0;
+    rstN = 1'b0;
     a = '0;
     void'($value$plusargs(\"seed=%d\", seed));
     // Seed this thread's generator (IEEE 1800 18.13.1). Verilator ignores

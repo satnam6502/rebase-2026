@@ -1,5 +1,11 @@
 # ruby-lean
 
+[![Build](https://github.com/satnam6502/rebase-2026/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/satnam6502/rebase-2026/actions/workflows/build.yml)
+[![Test](https://github.com/satnam6502/rebase-2026/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/satnam6502/rebase-2026/actions/workflows/test.yml)
+[![Lean](https://img.shields.io/badge/Lean-v4.34.1-blue)](lean-toolchain)
+[![Mathlib](https://img.shields.io/badge/Mathlib-v4.34.1-blue)](lakefile.toml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
 A Ruby-style hardware description language embedded in Lean 4, with
 Batcher's sorters as the case study. The same circuit description yields:
 
@@ -266,11 +272,12 @@ $ make impl      # Vivado place and route, and a placement check
   behavioural models of `LUT1`–`LUT6`, `CARRY4` and `FDCE`
   ([sim/unisim_models.sv](sim/unisim_models.sv)). It is quicker and needs no
   Vivado, but `make sim` against the real UNISIM library remains the reference.
-- CI ([.github/workflows/lean.yml](.github/workflows/lean.yml)) runs
-  `lake build`, `lake test`, `ruby-sv` (all 36 designs, both placements) and
-  `make verilate` (the `SIM_DESIGNS`, relatively placed) on every push and pull
-  request. [sim/selftest.sh](sim/selftest.sh) also checks that a deliberately
-  broken sorter fails its testbench and that seeds are reproducible.
+- CI runs on every push and pull request.
+  [Build](.github/workflows/build.yml) runs `lake build` and `ruby-sv` (all 36
+  designs, both placements). [Test](.github/workflows/test.yml) runs
+  `lake test`, `make verilate` (the `SIM_DESIGNS`, relatively placed) and
+  [sim/selftest.sh](sim/selftest.sh), which checks that a deliberately broken
+  sorter fails its testbench and that seeds are reproducible.
   `make sim` and `make impl` need Vivado and are not run in CI.
 - `make impl` implements out of context on an `xc7a200tsbg484-1` at 250 MHz
   ([vivado/implement.tcl](vivado/implement.tcl)). It then compares every
