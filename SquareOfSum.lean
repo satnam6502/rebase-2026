@@ -1,4 +1,4 @@
-import Mathlib
+import Mathlib.Algebra.Ring.Int.Defs
 
 /-- Superscript-two notation for squaring. -/
 local notation:max x:max "²" => x ^ 2
