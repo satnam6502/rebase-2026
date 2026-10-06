@@ -262,13 +262,16 @@ $ make impl      # Vivado place and route, and a placement check
   checks the outputs `latency` cycles later against a sort written in
   SystemVerilog. The random words are seeded with `+seed=<n>` (default 1, or
   `make sim SEED=<n>`), and a failure reports its seed.
-- `make verilate` runs the same testbenches with Verilator against
+- `make verilate` runs the testbenches of the `SIM_DESIGNS` with Verilator against
   behavioural models of `LUT1`–`LUT6`, `CARRY4` and `FDCE`
   ([sim/unisim_models.sv](sim/unisim_models.sv)). It is quicker and needs no
   Vivado, but `make sim` against the real UNISIM library remains the reference.
 - CI ([.github/workflows/lean.yml](.github/workflows/lean.yml)) runs
-  `lake build`, `lake test`, `ruby-sv` and `make verilate` on every push and
-  pull request. `make sim` and `make impl` need Vivado and are not run in CI.
+  `lake build`, `lake test`, `ruby-sv` (all 36 designs, both placements) and
+  `make verilate` (the `SIM_DESIGNS`, relatively placed) on every push and pull
+  request. [sim/selftest.sh](sim/selftest.sh) also checks that a deliberately
+  broken sorter fails its testbench and that seeds are reproducible.
+  `make sim` and `make impl` need Vivado and are not run in CI.
 - `make impl` implements out of context on an `xc7a200tsbg484-1` at 250 MHz
   ([vivado/implement.tcl](vivado/implement.tcl)). It then compares every
   cell's placed site and BEL with the `RLOC`/`BEL` emitted from the Lean

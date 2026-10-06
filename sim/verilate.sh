@@ -11,7 +11,11 @@ svdir=$(cd "$1" && pwd); shift
 mkdir -p "$1"; cd "$1"; shift
 status=0
 for d in "$@"; do
-  if verilator --binary --timing -Wno-fatal -Wno-lint -Wno-style --top-module "${d}_tb" \
+  # Any warning fails, except these known ones: unused CARRY4 outputs, a timescale
+  # only in the testbench, the testbench's initialised clock and reset, and
+  # several modules in unisim_models.sv.
+  if verilator --binary --timing -Wall -Wno-UNUSEDSIGNAL -Wno-TIMESCALEMOD -Wno-PROCASSINIT \
+       -Wno-DECLFILENAME --top-module "${d}_tb" \
        -Mdir "obj_$d" "$models" "$svdir/$d.sv" "$svdir/${d}_tb.sv" > "verilator_$d.log" 2>&1; then
     result=$("./obj_$d/V${d}_tb" ${SEED:+"+seed=$SEED"} > "run_$d.log" 2>&1; grep -E "^(PASS|FAIL)" "run_$d.log")
     if [ -z "$result" ]; then

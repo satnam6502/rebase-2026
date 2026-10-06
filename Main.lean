@@ -7,7 +7,8 @@ Write the SystemVerilog of the sorter cores and their testbenches.
 size, the module `<family><words>x<bits>.sv`, a self-checking testbench
 `<name>_tb.sv`, and a manifest `designs.tsv` listing each design's words, bits,
 latency and size in slices. Placement is a relocatable `RLOC` macro, or with
-`--loc XnYm` absolute `LOC`s with the macro origin at slice `XnYm`.
+`--loc XnYm` absolute `LOC`s with the macro origin at slice `XnYm`. OUTDIR
+defaults to `build/sv` and must not begin with `-`.
 -/
 
 open Ruby Ruby.Sorter Ruby.Circuit

@@ -1,7 +1,8 @@
 name: Lean
 
 # Check every definition and proof, the emitter checks in RubyTest, and that
-# ruby-sv generates the SystemVerilog, then simulate it with Verilator.
+# ruby-sv generates the SystemVerilog, then simulate it with Verilator. The
+# runner is pinned so that the Verilator version from apt only changes on purpose.
 # `make sim` and `make impl` need Vivado and are run locally.
 on:
   push:
@@ -10,7 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -42,7 +43,7 @@ jobs:
 
   simulate:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -61,3 +62,6 @@ jobs:
       # `-o sv`: use the downloaded SystemVerilog rather than regenerating it.
       - name: Simulate with Verilator
         run: make -o sv verilate
+
+      - name: Check that the testbenches catch a broken sorter
+        run: sim/selftest.sh build/sv build/selftest
