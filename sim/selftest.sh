@@ -19,7 +19,8 @@ run() {
   [ "$status" -eq 1 ] || { echo "selftest: broken sorter did not fail (seed $1)" >&2; exit 1; }
   echo "$out" | grep -q "^FAIL bitonic4x4: .* vectors wrong (seed $1)$" ||
     { echo "selftest: unexpected result for seed $1: $out" >&2; exit 1; }
-  grep MISMATCH work/run_bitonic4x4.log
+  grep MISMATCH work/run_bitonic4x4.log ||
+    { echo "selftest: no MISMATCH lines in work/run_bitonic4x4.log for seed $1" >&2; exit 1; }
 }
 a=$(run 1); b=$(run 1); c=$(run 2)
 [ "$a" = "$b" ] || { echo "selftest: seed 1 is not reproducible"; exit 1; }

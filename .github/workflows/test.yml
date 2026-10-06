@@ -3,7 +3,7 @@ name: Test
 # Check the SystemVerilog emitter (RubyTest), simulate the generated sorters
 # with Verilator, and check that the testbenches catch a broken sorter.
 # `make sim` and `make impl` need Vivado and are run locally. The runner is
-# pinned so that the Verilator version from apt changes only on purpose.
+# pinned to keep the Verilator release from apt stable (5.020 on Ubuntu 24.04).
 on:
   push:
     branches: [main]

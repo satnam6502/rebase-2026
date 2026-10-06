@@ -56,6 +56,8 @@ def parseSlice (s : String) : Option (Nat × Nat) := do
 directory, or explain what is wrong with it. -/
 def parseArgs : List String → Except String (Placement × System.FilePath)
   | [] => pure (.relative, "build/sv")
+  | ["--loc"] | [_, "--loc"] => throw "--loc needs an origin, for example X36Y50"
+  | [""] | ["", "--loc", _] => throw "OUTDIR must not be empty"
   | [dir] =>
       if dir.startsWith "-" then throw s!"unknown option {dir}" else pure (.relative, dir)
   | [dir, "--loc", origin] =>
@@ -73,6 +75,10 @@ def parseArgs : List String → Except String (Placement × System.FilePath)
 #guard (parseArgs ["--loc", "X36Y50"]).toOption.isNone
 #guard (parseArgs ["--loc"]).toOption.isNone
 #guard (parseArgs ["out", "--loc"]).toOption.isNone
+#guard (parseArgs [""]).toOption.isNone
+#guard (parseArgs ["", "--loc", "X36Y50"]).toOption.isNone
+#guard parseArgs ["--loc"] matches .error "--loc needs an origin, for example X36Y50"
+#guard parseArgs ["out", "--loc"] matches .error "--loc needs an origin, for example X36Y50"
 #guard (parseArgs ["out", "extra"]).toOption.isNone
 #guard (parseArgs ["out", "--loc", "X36Y50", "extra"]).toOption.isNone
 
