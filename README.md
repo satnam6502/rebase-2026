@@ -308,14 +308,15 @@ designs cover all four families at 2–32 words of 4 bits, 8 words of 8 bits and
 
 | design | words × bits | latency | cells | slices used | bounding box | worst slack | f<sub>max</sub> | layout |
 |---|---|---:|---:|---:|---:|---:|---:|---|
-| bitonic4x4 | 4 × 4 | 3 | 156 | 24 (full) | 6 × 4 | +0.953 ns | 328 MHz | honoured |
-| bitonic8x4 | 8 × 4 | 6 | 624 | 96 (full) | 12 × 8 | +0.809 ns | 313 MHz | honoured |
-| bitonic16x4 | 16 × 4 | 10 | 2080 | 320 (full) | 20 × 16 | +0.677 ns | 301 MHz | honoured |
-| oddeven16x4 | 16 × 4 | 10 | 1774 | 286 | 20 × 16 | +0.695 ns | 303 MHz | honoured |
-| balanced16x4 | 16 × 4 | 16 | 3328 | 512 (full) | 32 × 16 | +0.597 ns | 294 MHz | honoured |
-| periodic16x4 | 16 × 4 | 16 | 2824 | 456 | 32 × 16 | +0.646 ns | 298 MHz | honoured |
-| bitonic32x4 | 32 × 4 | 15 | 6240 | 960 (full) | 30 × 32 | +0.277 ns | 269 MHz | honoured |
-| oddeven32x4 | 32 × 4 | 15 | 5358 | 862 | 30 × 32 | +0.411 ns | 279 MHz | honoured |
+| bitonic4x4 | 4 × 4 | 3 | 156 | 24 (full) | 6 × 4 | +0.876 ns | 320 MHz | honoured |
+| bitonic8x4 | 8 × 4 | 6 | 624 | 96 (full) | 12 × 8 | +0.759 ns | 309 MHz | honoured |
+| bitonic8x8 | 8 × 8 | 6 | 1248 | 192 (full) | 12 × 16 | +0.481 ns | 284 MHz | honoured |
+| bitonic16x4 | 16 × 4 | 10 | 2080 | 320 (full) | 20 × 16 | +0.735 ns | 306 MHz | honoured |
+| oddeven16x4 | 16 × 4 | 10 | 1774 | 286 | 20 × 16 | +0.732 ns | 306 MHz | honoured |
+| balanced16x4 | 16 × 4 | 16 | 3328 | 512 (full) | 32 × 16 | +0.556 ns | 290 MHz | honoured |
+| periodic16x4 | 16 × 4 | 16 | 2824 | 456 | 32 × 16 | +0.597 ns | 294 MHz | honoured |
+| bitonic32x4 | 32 × 4 | 15 | 6240 | 960 (full) | 30 × 32 | +0.367 ns | 275 MHz | honoured |
+| oddeven32x4 | 32 × 4 | 15 | 5358 | 862 | 30 × 32 | +0.363 ns | 275 MHz | honoured |
 | balanced32x4 | 32 × 4 | 25 | 10400 | 1600 (full) | 50 × 32 | +0.243 ns | 266 MHz | honoured |
 | periodic32x4 | 32 × 4 | 25 | 9050 | 1450 | 50 × 32 | +0.469 ns | 283 MHz | honoured |
 | bitonic64x4 | 64 × 4 | 21 | 17472 | 2688 (full) | 42 × 64 | -0.229 ns | 236 MHz | honoured |
@@ -326,7 +327,6 @@ designs cover all four families at 2–32 words of 4 bits, 8 words of 8 bits and
 | oddeven128x4 | 128 × 4 | 28 | 40814 | 6526 | 56 × 128 | -1.307 ns | 188 MHz | honoured |
 | balanced128x4 | 128 × 4 | 49 | 81536 | 12544 (full) | 98 × 128 | -1.594 ns | 179 MHz | honoured |
 | periodic128x4 | 128 × 4 | 49 | 73598 | 11662 | 98 × 128 | -1.273 ns | 190 MHz | honoured |
-| bitonic8x8 | 8 × 8 | 6 | 1248 | 192 (full) | 12 × 16 | +0.483 ns | 284 MHz | honoured |
 
 - **Layout.** "Honoured" means every cell sits at one common offset from its
   `RLOC` (or exactly on its `LOC`) and on its requested BEL. "(full)" marks

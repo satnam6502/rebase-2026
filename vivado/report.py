@@ -36,11 +36,13 @@ for rundir in rundirs:
         results[name] = (cells, int(fields["slices"]), float(fields["period_ns"]),
                          float(fields["wns_ns"]), check.returncode == 0)
 
+# Group the rows by sorter size, words then bits, so that sorters of the same
+# size are on adjacent rows.
 order = {"bitonic": 0, "oddeven": 1, "balanced": 2, "periodic": 3}
 def key(name):
     family = name.rstrip("0123456789x")
     words, bits = boxes[name][0], boxes[name][1]
-    return (bits, words, order.get(family, 9))
+    return (words, bits, order.get(family, 9))
 
 print("| design | words × bits | latency | cells | slices used | bounding box | worst slack | f<sub>max</sub> | layout |")
 print("|---|---|---:|---:|---:|---:|---:|---:|---|")
