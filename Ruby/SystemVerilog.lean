@@ -145,7 +145,6 @@ module {name}_tb;
   int checked = 0;
   int errors = 0;
   int seed = 1;
-  int unsigned seeded;
 
   {name} dut ({ports});
 
@@ -171,10 +170,15 @@ module {name}_tb;
     rstN = 1'b0;
     a = '0;
     void'($value$plusargs(\"seed=%d\", seed));
-    // Seed this thread's generator (IEEE 1800 18.13.1). Verilator ignores
-    // process::srandom, but honours this. The result is assigned rather than
-    // cast to void, which xsim rejects as an unsupported system task.
-    seeded = $urandom(seed);
+    // Seed this thread's generator. Verilator ignores process::srandom (IEEE 1800
+    // 18.13.3) but honours $urandom(seed) (18.13.1). xsim rejects that call cast
+    // to void, and Verilator 5.020 deletes it if its result is assigned to a
+    // variable that is never read.
+`ifdef VERILATOR
+    void'($urandom(seed));
+`else
+    process::self().srandom(seed);
+`endif
     // Hold reset past the 100 ns global set/reset pulse of the UNISIM library.
     repeat (12) @(negedge clk);
     rstN = 1'b1;
