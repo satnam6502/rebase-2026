@@ -1,6 +1,6 @@
 name = "ruby"
 version = "0.1.0"
-defaultTargets = ["Ruby", "SquareofSumAristotle"]
+defaultTargets = ["Ruby", "SquareOfSum", "SquareofSumAristotle"]
 testDriver = "RubyTest"
 
 [leanOptions]
@@ -21,6 +21,9 @@ root = "Main"
 
 [[lean_lib]]
 name = "RubyTest"
+
+[[lean_lib]]
+name = "SquareOfSum"
 
 [[lean_lib]]
 name = "SquareofSumAristotle"
