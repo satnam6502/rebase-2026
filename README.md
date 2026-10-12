@@ -22,7 +22,13 @@ The sorters are ports of the Batcher sorters and FPGA layouts of
 [`xilinx-lava`](../xilinx-lava). There are four cores: bitonic, odd–even
 merge, and the two periodic sorters of Claessen, Sheeran and Singh's sorter
 core paper. They are related to one another by Bird–Meertens calculation, in
-the style of `rtl/experiments/bird-meertens/BirdMeertens/Sorters.lean`.
+the style of
+[bird-meertens/BirdMeertens/Sorters.lean](bird-meertens/BirdMeertens/Sorters.lean).
+
+The repository also holds four Bird–Meertens derivations on lists, in
+[bird-meertens](bird-meertens): Kadane's algorithm, a CRC, a carry-lookahead
+adder and the four sorter cores. They build from the same `lakefile.toml`; see
+[Bird–Meertens derivations](#birdmeertens-derivations).
 
 Lean `v4.34.1` with Mathlib `v4.34.1`. The project has no other
 dependencies; it does not use `../lhdl`.
@@ -37,6 +43,7 @@ dependencies; it does not use `../lhdl`.
 - [Building, simulating and implementing](#building-simulating-and-implementing)
 - [Results](#results)
 - [Limitations](#limitations)
+- [Bird–Meertens derivations](#birdmeertens-derivations)
 
 ## Design of the DSL
 
@@ -92,7 +99,7 @@ outputs, at cycle `t + k`, its combinational function of the inputs at cycle
 |---|---|---|
 | `xilinx-lava` (Haskell, tagless final) | Combinator-based layout (`>->`, `>\|>`, `vpar2`, `vmap`) produced placed sorters up to 128 inputs. | Lava rebuilt the layout tree by popping blocks off a stack whenever the netlist grew, so wiring had no layout meaning and the scheme was fragile. Here layout is a structural interpretation of the term, and theorems about it are possible. Lava's correctness evidence was simulation and EQY at fixed sizes; here it is proofs at every size. |
 | `lhdl` / `alt-lhdl` (Lean, monadic typeclass) | One description, several semantics (relational, functional, netlist). | The Batcher proofs were fixed-size (4 and 8 inputs) and found by heavy unfolding and search. The general merger theorem in `rtl/docs/v2l_backends/Ruby.lean` stayed `sorry`. The "pipeline latency" theorems evaluated a separately defined number, not a property of the circuit. Here latency is computed from the circuit and connected to its stream semantics. Vectors are `Fin n → α` rather than `List.Vector`, and lengths are written `m * 2` so `2 ^ (n + 1)` is *definitionally* `2 ^ n * 2`: the recursive networks need no `▸` casts. |
-| Bird–Meertens `Sorters.lean` (lists) | The four cores related by wiring laws, one `fly` schema. | Its correctness checks were for 4 and 8 inputs only. Here the same laws are proved over `Fin` vectors, and the sorters are proved to sort at every degree. |
+| Bird–Meertens [`Sorters.lean`](bird-meertens/BirdMeertens/Sorters.lean) (lists) | The four cores related by wiring laws, one `fly` schema. | Its correctness checks were for 4 and 8 inputs only. Here the same laws are proved over `Fin` vectors, and the sorters are proved to sort at every degree. |
 
 ## The sorters
 
@@ -273,11 +280,13 @@ $ make impl      # Vivado place and route, and a placement check
   ([sim/unisim_models.sv](sim/unisim_models.sv)). It is quicker and needs no
   Vivado, but `make sim` against the real UNISIM library remains the reference.
 - CI runs on every push and pull request.
-  [Build](.github/workflows/build.yml) runs `lake build` and `ruby-sv` (all 36
-  designs, both placements). [Test](.github/workflows/test.yml) runs
-  `lake test`, `make verilate` (the `SIM_DESIGNS`, relatively placed) and
-  [sim/selftest.sh](sim/selftest.sh), which checks that a deliberately broken
-  sorter fails its testbench and that seeds are reproducible.
+  [Build](.github/workflows/build.yml) runs `lake build`, which includes the
+  [Bird–Meertens derivations](#birdmeertens-derivations) and their two
+  executables, and `ruby-sv` (all 36 designs, both placements).
+  [Test](.github/workflows/test.yml) runs `lake test`, `make verilate` (the
+  `SIM_DESIGNS`, relatively placed) and [sim/selftest.sh](sim/selftest.sh),
+  which checks that a deliberately broken sorter fails its testbench and that
+  seeds are reproducible.
   `make sim` and `make impl` need Vivado and are not run in CI.
 - `make impl` implements out of context on an `xc7a200tsbg484-1` at 250 MHz
   ([vivado/implement.tcl](vivado/implement.tcl)). It then compares every
@@ -364,3 +373,40 @@ designs cover all four families at 2–32 words of 4 bits, 8 words of 8 bits and
   needs a taller part, or a layout split into several macros around the
   device's hard blocks. A fold would need a side-by-side variant of `‖`;
   `eval` ignores geometry, so the proofs of behaviour would not change.
+
+## Bird–Meertens derivations
+
+[bird-meertens](bird-meertens) holds four derivations in the Bird–Meertens
+style, on lists. Each starts from an obvious specification and ends at an
+efficient program. Every step in between is a proved law, cited in a `calc`
+block. Its [README](bird-meertens/README.md) gives each derivation in full,
+with running times, netlist sizes and the axioms each theorem uses.
+
+| file | specification | result |
+|---|---|---|
+| [Kadane.lean](bird-meertens/BirdMeertens/Kadane.lean) | `maxL ∘ map sum ∘ segs`, O(n³) | Kadane's `foldl`, O(n) |
+| [CRC.lean](bird-meertens/BirdMeertens/CRC.lean) | remainder of `M·Xᵏ` by `g` | an LFSR, then Sarwate's table; [crc8.sv](bird-meertens/crc8.sv) is proved to be the LFSR |
+| [Adder.lean](bird-meertens/BirdMeertens/Adder.lean) | a carry is the overflow of the columns below | Sklansky's carry-lookahead adder, of log depth, and its netlist |
+| [Sorters.lean](bird-meertens/BirdMeertens/Sorters.lean) | the four sorter cores of Claessen, Sheeran and Singh | the four, related by equations |
+
+`Sorters.lean` checks its sorters at 4 and 8 inputs.
+[Ruby/Sorting](Ruby/Sorting) proves the same wiring laws over `Fin` vectors,
+and proves the sorters correct at every degree.
+
+The `BirdMeertens` library and two executables are targets of the root
+`lakefile.toml`. Run these from the repository root:
+
+```console
+$ lake build BirdMeertens                    # every derivation (also built by `make lean`)
+$ lake exe kadane_bench                      # time every line of the Kadane derivation, plot to bird-meertens/bench
+$ lake exe adder_netlist                     # the derived 32-bit adder as Verilog, in bird-meertens/netlist
+$ make -C bird-meertens/netlist lint equiv   # Verilator lint, and a Yosys SAT proof that the netlist adds
+```
+
+- `BirdMeertens` is compiled with `autoImplicit` on and a larger
+  `maxRecDepth`. The `lakefile.toml` sets these for that library alone; the
+  rest of the repository keeps `autoImplicit` off.
+- `crc8Next_eq_lfsrStep` is proved by `bv_decide`, which adds one axiom for
+  its compiled check. `crc8_rtl_correct` inherits it. The other headline
+  theorems use only `propext`, `Quot.sound` and `Classical.choice`.
+- `make equiv` needs the open-source Yosys. Set `OSS_YOSYS` to its path.

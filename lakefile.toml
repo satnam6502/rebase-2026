@@ -1,6 +1,6 @@
 name = "ruby"
 version = "0.1.0"
-defaultTargets = ["Ruby", "SquareOfSum", "SquareofSumAristotle"]
+defaultTargets = ["Ruby", "SquareOfSum", "SquareofSumAristotle", "BirdMeertens", "kadane_bench", "adder_netlist"]
 testDriver = "RubyTest"
 
 [leanOptions]
@@ -27,3 +27,18 @@ name = "SquareOfSum"
 
 [[lean_lib]]
 name = "SquareofSumAristotle"
+
+[[lean_lib]]
+name = "BirdMeertens"
+srcDir = "bird-meertens"
+leanOptions = { autoImplicit = true, maxRecDepth = 1000000 }
+
+[[lean_exe]]
+name = "kadane_bench"
+root = "KadaneBench"
+srcDir = "bird-meertens/bench"
+
+[[lean_exe]]
+name = "adder_netlist"
+root = "AdderNetlist"
+srcDir = "bird-meertens/netlist"
