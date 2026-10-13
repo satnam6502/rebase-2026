@@ -1,7 +1,7 @@
 name: Build
 
-# Check every definition and proof, check that the Kadane diagrams are up to
-# date, and generate the SystemVerilog of all 36 designs in both placements.
+# Check every definition and proof, check that the Bird–Meertens diagrams are
+# up to date, and generate the SystemVerilog of all 36 designs in both placements.
 # The runner is pinned so that tool versions change only on purpose.
 on:
   push:
@@ -23,12 +23,13 @@ jobs:
           build: true
           test: false
 
-      - name: Check that the Kadane diagrams are up to date
+      - name: Check that the Bird–Meertens diagrams are up to date
         run: |
           lake exe kadane_diagrams
+          lake exe adder_diagrams
           git add --intent-to-add -- bird-meertens/diagrams
           git diff --exit-code -- bird-meertens/diagrams || {
-            echo "::error::The Kadane diagrams are stale. Run 'lake exe kadane_diagrams' with the toolchain in lean-toolchain, and commit the result."
+            echo "::error::The Bird–Meertens diagrams are stale. Run 'lake exe kadane_diagrams' and 'lake exe adder_diagrams' with the toolchain in lean-toolchain, and commit the result."
             exit 1
           }
           # Every SVG is well-formed XML.
