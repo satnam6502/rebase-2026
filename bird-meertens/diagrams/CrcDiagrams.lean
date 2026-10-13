@@ -561,8 +561,9 @@ def Wire.points (w : Wire) : List (Float × Float) :=
   (w.pts.zip (w.pts.drop 1)).flatMap fun ((x₀, y₀), (x₁, y₁)) =>
     (List.range 41).map fun i => let t := i.toFloat / 40; (x₀ + (x₁ - x₀) * t, y₀ + (y₁ - y₀) * t)
 
-/-- A fault in a schematic: a text off the page or over another, a label on a
-block, or a wire through a block that is not one of its ends, or through a text. -/
+/-- A fault in a schematic: a wire with a segment of length 0, which has no
+direction for its arrowhead; a text off the page or over another; a label on a
+block; or a wire through a block that is not one of its ends, or through a text. -/
 def Sch.fault (s : Sch) : Option String :=
   let ts := s.textRects
   let off := ts.find? fun (_, r) => r.l < 0 || r.r > s.w || r.t < top0 - 28 || r.b > s.h
@@ -576,6 +577,8 @@ def Sch.fault (s : Sch) : Option String :=
     (s.blks.find? fun (b : Blk) => let (hw, hh) := b.half
       r.l < b.x + hw && b.x - hw < r.r && r.t < b.y + hh && b.y - hh < r.b).map
       fun (b : Blk) => s!"{l} overlaps the block {b.id}"
+  let degenerate := s.wires.any fun w => w.pts.length < 2 ||
+    (w.pts.zip (w.pts.drop 1)).any fun ((x₀, y₀), (x₁, y₁)) => x₀ == x₁ && y₀ == y₁
   let hit := s.wires.findSome? fun w =>
     let inBlk := s.blks.find? fun b =>
       !(w.ends.contains b.id) && let (hw, hh) := b.half
@@ -586,6 +589,7 @@ def Sch.fault (s : Sch) : Option String :=
     | some b, _ => some s!"a wire crosses the block {b.id}"
     | none, some (l, _) => some s!"a wire crosses {l}"
     | none, none => none
+  if degenerate then some "a wire has a segment of length 0" else
   match off with
   | some (l, _) => some s!"{l} is off the page"
   | none => clash.orElse fun _ => onBlk.orElse fun _ => hit
@@ -601,6 +605,7 @@ def testSch (wires : List Wire) (texts : List (Float × Float × String) := []) 
 #guard (testSch [{ pts := [(20, 150), (280, 150)] }]).fault == some "a wire crosses the block a"
 #guard (testSch [] [(150, 166, "label")]).fault == some "label overlaps the block a"
 #guard (testSch [] [(4, 200, "a long label")]).fault == some "a long label is off the page"
+#guard (testSch [{ pts := [(20, 150), (60, 150), (60, 150)] }]).fault == some "a wire has a segment of length 0"
 
 def blkSvg (th : Theme) (b : Blk) : String :=
   let (hw, hh) := b.half
