@@ -31,6 +31,8 @@ jobs:
             echo "::error::The Kadane diagrams are stale. Run 'lake exe kadane_diagrams' and commit the result."
             exit 1
           }
+          # Every SVG is well-formed XML.
+          python3 -c 'import sys, xml.etree.ElementTree as E; [E.parse(f) for f in sys.argv[1:]]' bird-meertens/diagrams/*.svg
           # The README shows every diagram in a <picture>, light and dark, and
           # every diagram it shows exists.
           for f in bird-meertens/diagrams/*.svg; do
