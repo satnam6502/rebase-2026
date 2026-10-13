@@ -204,6 +204,9 @@ def circuits : List Circuit :=
 /-- The circuit drawn in file `f`. -/
 def circuit (f : String) : Circuit := (circuits.find? (·.file == f)).getD default
 
+-- Every circuit has `n` sum bits and a carry out, and every lookup below finds one.
+#guard circuits.all (·.outs.length == n + 1)
+
 -- The definition of `scan1` changes no cell: lines 4 and 5 build the same circuit.
 #guard (circuit "adder_circuit_scan").outs == line5
 
@@ -343,7 +346,8 @@ structure Route where
   dashed : Bool := false
   ends : List (Nat × Nat) := []
 
-/-- Where a wire starts: the bottom of its column label, or its cell. -/
+/-- Where a wire starts: the bottom of its column label, or its cell.
+`Circuit.fault` rejects a drawing with a wire whose cell is not placed. -/
 def srcAt (ps : List Placed) (w : Wire) : Nat × Nat × Float × Float :=
   match w with
   | .inp k => (k, 0, colX k, wireTop)
@@ -436,10 +440,15 @@ def Circuit.size (k : Circuit) : Float × Float :=
     rows.map (fun (_, s) => M + 44 + textW s) ++ [M + textW k.line, M + k.name.length.toFloat * 9.5]
   (w.foldl max 0 + M, top + 16 + legendRowH * rows.length.toFloat + M)
 
-/-- A fault in a circuit's drawing: a text off the page or over another, or a
-wire through a cell or a text that is not one of its ends. -/
+/-- A fault in a circuit's drawing: a wire whose source is not placed, a text
+off the page or over another, or a wire through a cell or a text that is not
+one of its ends. -/
 def Circuit.fault (k : Circuit) : Option String :=
   let (ps, _, _) := k.placed
+  let placed (w : Wire) : Bool := match w with
+    | .inp _ => true
+    | .cell kd a _ => ps.any fun p => p.kind == kd && p.args == a
+  let unplaced := !(ps.all (·.args.all placed) && k.outs.all placed)
   let (W, _) := k.size
   let ts := k.texts.map fun t => (t.s, textRect t.x t.y t.s t.anchor)
   let off := ts.find? fun (_, r) => r.l < 0 || r.r > W || r.t < top0 - 28
@@ -459,6 +468,7 @@ def Circuit.fault (k : Circuit) : Option String :=
     | some p, _ => some s!"a wire crosses the {p.kind.label} cell in column {p.col}, level {p.lvl}"
     | none, some (s, _) => some s!"a wire crosses {s}"
     | none, none => none
+  if unplaced then some "a wire comes from a cell that is not placed" else
   match off with
   | some (s, _) => some s!"{s} is off the page"
   | none => clash.orElse fun _ => hit
