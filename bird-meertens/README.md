@@ -50,9 +50,10 @@ Bracket colour shows depth. Blue brackets hold numbers, orange brackets hold
 lists of numbers, and green brackets hold lists of those.
 
 [`diagrams/KadaneDiagrams.lean`](diagrams/KadaneDiagrams.lean) draws them. It
-computes every value with the definitions in `Kadane.lean`, and it fails if
-the two paths of a diagram disagree. CI redraws the diagrams and checks that
-they match the committed files.
+computes every value with the definitions in `Kadane.lean`. It fails if the
+two paths of a diagram end at different values, or if two pieces of text
+overlap. CI redraws the diagrams and checks that they match the committed
+files.
 
 ```bash
 lake exe kadane_diagrams     # redraws the SVGs in bird-meertens/diagrams

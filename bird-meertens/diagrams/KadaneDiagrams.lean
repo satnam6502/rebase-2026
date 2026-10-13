@@ -11,7 +11,8 @@ line before the step, the right path the line after it, and both end at the
 same value.
 
 Every value is computed by the definitions in `BirdMeertens/Kadane.lean`. The
-executable fails if the two paths of a diagram disagree. It writes
+executable fails if the two paths of a diagram end at different values, as
+drawn, or if two pieces of text overlap. It writes
 `bird-meertens/diagrams/<law>_light.svg` and `<law>_dark.svg`, where `<law>` is
 the name of the law's theorem. Run it from the repository root:
 
@@ -67,6 +68,9 @@ instance {α : Type} [Draw α] : Draw (List α) where
 /-- A node of a diagram: lines of text, each centred. -/
 abbrev Node := List (List Span)
 
+/-- The text of a line, without its colours. -/
+def lineText (l : List Span) : String := String.join (l.map (·.1))
+
 /-- A node showing one value. -/
 def node {α : Type} [Draw α] (x : α) : Node := [Draw.spans x]
 
@@ -104,8 +108,14 @@ structure Law where
   /-- Run a long path down a column, and arc the one-arrow path round it.
   This suits a path whose middle values are much wider than its ends. -/
   arc : Bool := false
-  /-- Both paths compute the same value. -/
-  holds : Bool
+
+/-- The value a path ends at, as drawn: the last line of its last node,
+without the `= ` that puts a value under an expression. -/
+def result (path : List (String × Node)) : String :=
+  let l := ((path.getLast?.map (·.2)).getD []).getLastD []
+  lineText (match l with
+    | (s, i) :: v => if s == "= " && i == .label then v else l
+    | [] => [])
 
 /-- The example. The best segment is `[3]`. `⊙` drops `3 + −4` to `0`, and
 Kadane's pair ends as `(3, 2)`, with two different components. -/
@@ -123,45 +133,38 @@ def laws : List Law :=
       start := node xs,
       before := [("segs", node (segs xs))],
       after := [("inits", node pre), ("map tails", node t), ("concat", node (concat t))],
-      arc := true,
-      holds := segs xs == concat t },
+      arc := true },
     { file := "map_promotion", name := "Map promotion",
       statement := "map f ∘ concat = concat ∘ map (map f)",
       start := node t,
       before := [("concat", node (concat t)), ("map sum", node (map sum (concat t)))],
-      after := [("map (map sum)", node s), ("concat", node (concat s))],
-      holds := map sum (concat t) == concat s },
+      after := [("map (map sum)", node s), ("concat", node (concat s))] },
     { file := "fold_promotion", name := "Fold promotion",
       statement := "maxL ∘ concat = maxL ∘ map maxL",
       start := node s,
       before := [("concat", node (concat s)), ("maxL", node (maxL (concat s)))],
-      after := [("map maxL", node (map maxL s)), ("maxL", node (maxL (map maxL s)))],
-      holds := maxL (concat s) == maxL (map maxL s) },
+      after := [("map maxL", node (map maxL s)), ("maxL", node (maxL (map maxL s)))] },
     { file := "map_distrib", name := "Map distributivity",
       statement := "map f ∘ map g = map (f ∘ g)",
       start := node pre,
       before := [("map tails", node t), ("map (map sum)", node s),
         ("map maxL", node (map maxL s))],
       after := [("map (maxL ∘ map sum ∘ tails)", node (map (maxL ∘ map sum ∘ tails) pre))],
-      arc := true,
-      holds := map maxL s == map (maxL ∘ map sum ∘ tails) pre },
+      arc := true },
     { file := "horner", name := "Horner's rule",
       statement := "maxL ∘ map sum ∘ tails = foldl (⊙) 0",
       start := node xs,
       before := [("tails", node (tails xs)), ("map sum", node (map sum (tails xs))),
         ("maxL", node (maxL (map sum (tails xs))))],
-      after := [("foldl (⊙) 0", node (foldl odotText "0" xs))],
-      note := w,
-      holds := maxL (map sum (tails xs)) == foldl (· ⊙ ·) 0 xs },
+      after := [("foldl (⊙) 0", node2 (foldl odotText "0" xs) (foldl (· ⊙ ·) 0 xs))],
+      note := w },
     { file := "scan_lemma", name := "Scan lemma",
       statement := "map (foldl f e) ∘ inits = scanl f e",
       start := node xs,
       before := [("inits", node pre),
         ("map (foldl (⊙) 0)", node2 (map (foldl odotText "0") pre) (map (foldl (· ⊙ ·) 0) pre))],
       after := [("scanl (⊙) 0", node2 (scanl odotText "0" xs) (scanl (· ⊙ ·) 0 xs))],
-      note := w,
-      holds := map (foldl (· ⊙ ·) 0) pre == scanl (· ⊙ ·) 0 xs &&
-        map (foldl odotText "0") pre == scanl odotText "0" xs },
+      note := w },
     { file := "fold_scan_fusion", name := "Fold–scan fusion",
       statement := "maxL ∘ scanl (⊙) 0 = fst ∘ foldl (⊗) (0, 0)",
       start := node xs,
@@ -169,8 +172,7 @@ def laws : List Law :=
         ("maxL", node (maxL (scanl (· ⊙ ·) 0 xs)))],
       after := [("foldl (⊗) (0, 0)", node2 (foldl otimesText "(0, 0)" xs) (foldl (· ⊗ ·) (0, 0) xs)),
         ("fst", node (foldl (· ⊗ ·) (0, 0) xs).1)],
-      note := w ++ ["(u, v) ⊗ x = (max u w, w), with w = v ⊙ x"],
-      holds := maxL (scanl (· ⊙ ·) 0 xs) == (foldl (· ⊗ ·) (0, 0) xs).1 } ]
+      note := w ++ ["(u, v) ⊗ x = (max u w, w), with w = v ⊙ x"] } ]
 
 /-! ## Layout -/
 
@@ -185,8 +187,6 @@ def gapY : Float := 64
 def top0 : Float := 92
 
 def textW (s : String) : Float := s.length.toFloat * cw
-
-def lineText (l : List Span) : String := String.join (l.map (·.1))
 
 def nodeW (n : Node) : Float := n.foldl (fun m l => max m (textW (lineText l))) 0
 
@@ -358,25 +358,27 @@ def chain (s : Node) (steps : List (String × Node)) (b : String) (tr : Node)
   return { boxes := boxes.toList, arrows := arrows.toList, eqs := eqs.toList, w := W, h := bottom }
 
 /-- How far right the arc from `(x₀, y₀)` to `(x₃, y₃)` must bend to pass
-every box by 16 px. -/
-def bendFor (x₀ y₀ x₃ y₃ : Float) (boxes : List Box) : Float := Id.run do
-  let clears (xE : Float) : Bool := (List.range 101).all fun i =>
+every box by 16 px, at 101 points along it. Its `x` is linear in the bend, so
+each point gives a least bend directly. `none` if an end of the arc lies level
+with a box, where no bend helps. -/
+def bendFor (x₀ y₀ x₃ y₃ : Float) (boxes : List Box) : Option Float :=
+  (List.range 101).foldlM (init := max x₀ x₃ + 24) fun xE i =>
     let t := i.toFloat / 100
     let u := 1 - t
-    let x := u * u * u * x₀ + 3 * u * t * xE + t * t * t * x₃
     let y := y₀ + (y₃ - y₀) * t * t * (3 - 2 * t)
-    boxes.all fun b => y < b.y - 4 || y > b.y + b.h + 4 || x ≥ b.cx + b.w / 2 + 16
-  let mut xE := max x₀ x₃ + 24
-  for _ in [0:200] do
-    if clears xE then break
-    xE := xE + 4
-  return xE
+    boxes.foldlM (init := xE) fun xE b =>
+      if y < b.y - 4 || y > b.y + b.h + 4 then some xE
+      else
+        -- The arc's `x` here is `u³·x₀ + 3ut·xE + t³·x₃`.
+        let k := 3 * u * t
+        if k == 0 then none
+        else some (max xE ((b.cx + b.w / 2 + 16 - u * u * u * x₀ - t * t * t * x₃) / k))
 
 /-- A chain of arrows straight down a column, and one arrow from `s` that arcs
 round the column on the right. They meet at one node if they compute the same
 text. Otherwise the two results stand side by side, joined by `=`. -/
 def column (s : Node) (steps : List (String × Node)) (b : String) (tr : Node)
-    (minW : Float) : Pic :=
+    (minW : Float) : Option Pic := do
   let tl := (steps.getLast?.map (·.2)).getD []
   let shared := tl == tr
   let col := s :: steps.map (·.2)
@@ -392,9 +394,10 @@ def column (s : Node) (steps : List (String × Node)) (b : String) (tr : Node)
   let last := boxes.getLast!
   let E : Box := if shared then last else ⟨tr, xc + last.w / 2 + 40 + nodeW tr / 2, last.y⟩
   let edge (b : Box) := b.cx + textW (lineText (b.node.headD [])) / 2 + 8
-  let xE := bendFor (edge S) (S.y + 10) (edge E) (E.y + 10) ((boxes.drop 1).dropLast)
+  let xE ← bendFor (edge S) (S.y + 10) (edge E) (E.y + 10) ((boxes.drop 1).dropLast)
   let arc : Arc := ⟨edge S, S.y + 10, xE, edge E, E.y + 10, b⟩
-  { boxes := if shared then boxes else boxes ++ [E]
+  return {
+    boxes := if shared then boxes else boxes ++ [E]
     arrows
     arcs := [arc]
     eqs := if shared then [] else [(xc + last.w / 2 + 20, last.y + 14)]
@@ -464,31 +467,87 @@ def drawBox (th : Theme) (b : Box) : String := Id.run do
     out := out ++ textLine th b.cx (b.y + 14 + lineH * i.toFloat) b.node[i]!
   return out
 
-def drawArrow (th : Theme) (a : Arrow) : String :=
+/-- The unit vector along an arrow. -/
+def Arrow.dir (a : Arrow) : Float × Float :=
   let ((x₀, y₀), (x₁, y₁)) := a.ends
   let len := Float.sqrt ((x₁ - x₀) * (x₁ - x₀) + (y₁ - y₀) * (y₁ - y₀))
-  let (ux, uy) := ((x₁ - x₀) / len, (y₁ - y₀) / len)
-  let pt (x y : Float) := s!"{num x},{num y}"
-  let head := s!"{pt x₁ y₁} {pt (x₁ - 10 * ux + 4.5 * uy) (y₁ - 10 * uy - 4.5 * ux)} {pt (x₁ - 10 * ux - 4.5 * uy) (y₁ - 10 * uy + 4.5 * ux)}"
-  -- The label's side of the arrow: the normal pointing left, or right.
+  ((x₁ - x₀) / len, (y₁ - y₀) / len)
+
+/-- Where an arrow's label goes, beside its midpoint: the anchor, the
+baseline and the `text-anchor`. -/
+def Arrow.labelAt (a : Arrow) : Float × Float × String :=
+  let ((x₀, y₀), (x₁, y₁)) := a.ends
+  let (ux, uy) := a.dir
+  -- The normal on the label's side.
   let (nx, ny) := if a.onLeft then (-uy, ux) else (uy, -ux)
   let (nx, ny) := if (a.onLeft && nx > 0) || (!a.onLeft && nx < 0) then (-nx, -ny) else (nx, ny)
-  let lx := (x₀ + x₁) / 2 + 10 * nx
-  let ly := (y₀ + y₁) / 2 + 10 * ny + 4 + 6 * ny
+  ((x₀ + x₁) / 2 + 10 * nx, (y₀ + y₁) / 2 + 10 * ny + 4 + 6 * ny, if a.onLeft then "end" else "start")
+
+/-- Where an arc's label goes, beside its apex. -/
+def Arc.labelAt (a : Arc) : Float × Float × String :=
+  let onRight := a.xE > a.x₀
+  (a.apex + (if onRight then 10 else -10), (a.y₀ + a.y₃) / 2 + 4, if onRight then "start" else "end")
+
+def drawArrow (th : Theme) (a : Arrow) : String :=
+  let ((x₀, y₀), (x₁, y₁)) := a.ends
+  let (ux, uy) := a.dir
+  let pt (x y : Float) := s!"{num x},{num y}"
+  let head := s!"{pt x₁ y₁} {pt (x₁ - 10 * ux + 4.5 * uy) (y₁ - 10 * uy - 4.5 * ux)} {pt (x₁ - 10 * ux - 4.5 * uy) (y₁ - 10 * uy + 4.5 * ux)}"
+  let (lx, ly, anchor) := a.labelAt
   s!"<line x1=\"{num x₀}\" y1=\"{num y₀}\" x2=\"{num (x₁ - 8 * ux)}\" y2=\"{num (y₁ - 8 * uy)}\" stroke=\"{th.ink2}\" stroke-width=\"1.5\"/>\n" ++
   s!"<polygon points=\"{head}\" fill=\"{th.ink2}\"/>\n" ++
-  textLine th lx ly [(a.label, .label)] (if a.onLeft then "end" else "start")
+  textLine th lx ly [(a.label, .label)] anchor
 
 def drawArc (th : Theme) (a : Arc) : String :=
   -- The arrow points left if the arc bends out to the right.
   let u : Float := if a.xE > a.x₃ then -1 else 1
   let xEnd := a.x₃ - 8 * u
   let head := s!"{num a.x₃},{num a.y₃} {num (a.x₃ - 10 * u)},{num (a.y₃ - 4.5)} {num (a.x₃ - 10 * u)},{num (a.y₃ + 4.5)}"
-  let onRight := a.xE > a.x₀
-  let lx := a.apex + (if onRight then 10 else -10)
+  let (lx, ly, anchor) := a.labelAt
   s!"<path d=\"M {num a.x₀} {num a.y₀} C {num a.xE} {num a.y₀}, {num a.xE} {num a.y₃}, {num xEnd} {num a.y₃}\" fill=\"none\" stroke=\"{th.ink2}\" stroke-width=\"1.5\"/>\n" ++
   s!"<polygon points=\"{head}\" fill=\"{th.ink2}\"/>\n" ++
-  textLine th lx ((a.y₀ + a.y₃) / 2 + 4) [(a.label, .label)] (if onRight then "start" else "end")
+  textLine th lx ly [(a.label, .label)] anchor
+
+/-! ## Checking the layout -/
+
+/-- A rectangle: left, top, right, bottom. -/
+structure Rect where
+  l : Float
+  t : Float
+  r : Float
+  b : Float
+  deriving Inhabited
+
+def Rect.meets (a b : Rect) : Bool := a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b
+
+/-- What a line of text covers, from its anchor and baseline. -/
+def textRect (x y : Float) (s : String) (anchor : String) : Rect :=
+  let w := textW s
+  let l := if anchor == "end" then x - w else if anchor == "start" then x else x - w / 2
+  ⟨l, y - 11, l + w, y + 3⟩
+
+/-- Every piece of text in a diagram: the lines of its nodes, its labels and
+its `=` signs. -/
+def Pic.texts (p : Pic) : List (String × Rect) :=
+  let line (b : Box) (i : Nat) :=
+    let s := lineText (b.node.getD i [])
+    (s, textRect b.cx (b.y + 14 + lineH * i.toFloat) s "middle")
+  let label (s : String) : Float × Float × String → String × Rect
+    | (x, y, anchor) => (s, textRect x y s anchor)
+  p.boxes.flatMap (fun b => (List.range b.node.length).map (line b)) ++
+  p.arrows.map (fun a => label a.label a.labelAt) ++
+  p.arcs.map (fun a => label a.label a.labelAt) ++
+  p.eqs.map fun (x, y) => ("=", textRect x y "=" "middle")
+
+/-- A fault in a layout: two texts that overlap, or a text off the page. -/
+def Pic.fault (p : Pic) : Option String :=
+  let ts := p.texts
+  let off := ts.find? fun (_, r) => r.l < 0 || r.r > p.w
+  let clash := (List.range ts.length).findSome? fun i => (List.range i).findSome? fun j =>
+    if ts[i]!.2.meets ts[j]!.2 then some s!"{ts[j]!.1} overlaps {ts[i]!.1}" else none
+  match off with
+  | some (s, _) => some s!"{s} is off the page"
+  | none => clash
 
 /-- The plain text of a node, for the description. -/
 def plain (n : Node) : String := " ".intercalate (n.map lineText)
@@ -498,14 +557,15 @@ def walk (steps : List (String × Node)) : String :=
   ", then ".intercalate (steps.map fun (a, n) => s!"{a} gives {plain n}")
 
 /-- Lay out a law with two arrows on each side, or one arrow on one side and
-two or more on the other. -/
+two or more on the other. `none` for any other shape, or if an arc cannot
+clear its column. -/
 def layout (l : Law) : Option Pic :=
   let minW := 2 * M + max (l.name.length.toFloat * 9.5) (textW l.statement)
-  let side := if l.arc then column else chain
+  let side s steps b t := if l.arc then column s steps b t minW else some (chain s steps b t minW)
   match l.before, l.after with
   | [(a₁, x), (a₂, t)], [(b₁, y), (b₂, _)] => some (diamond l.start a₁ x a₂ b₁ y b₂ t minW)
-  | steps@(_ :: _ :: _), [(b, t)] => some (side l.start steps b t minW)
-  | [(b, t)], steps@(_ :: _ :: _) => some (side l.start steps b t minW).mirror
+  | steps@(_ :: _ :: _), [(b, t)] => side l.start steps b t
+  | [(b, t)], steps@(_ :: _ :: _) => (side l.start steps b t).map Pic.mirror
   | _, _ => none
 
 def svg (th : Theme) (l : Law) (p : Pic) : String := Id.run do
@@ -543,12 +603,16 @@ def main : IO UInt32 := do
   let dir := "bird-meertens/diagrams"
   IO.FS.createDirAll dir
   for l in laws do
-    if !l.holds then
-      IO.eprintln s!"{l.name}: the two paths disagree"
+    let (u, v) := (result l.before, result l.after)
+    if u != v then
+      IO.eprintln s!"{l.name}: the paths end at {u} and {v}"
       return 1
     let some p := layout l
       | IO.eprintln s!"{l.name}: no layout for paths of {l.before.length} and {l.after.length} arrows"
         return 1
+    if let some f := p.fault then
+      IO.eprintln s!"{l.name}: {f}"
+      return 1
     IO.FS.writeFile s!"{dir}/{l.file}_light.svg" (svg light l p)
     IO.FS.writeFile s!"{dir}/{l.file}_dark.svg" (svg dark l p)
     IO.println s!"{dir}/{l.file}_{"{light,dark}"}.svg"

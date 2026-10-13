@@ -26,8 +26,15 @@ jobs:
       - name: Check that the Kadane diagrams are up to date
         run: |
           lake exe kadane_diagrams
-          git status --short -- bird-meertens/diagrams
-          test -z "$(git status --porcelain -- bird-meertens/diagrams)"
+          git add --intent-to-add -- bird-meertens/diagrams
+          git diff --exit-code -- bird-meertens/diagrams
+          # The README shows every diagram, and every diagram it shows exists.
+          for f in bird-meertens/diagrams/*.svg; do
+            grep -q "diagrams/$(basename "$f")" bird-meertens/README.md || { echo "not in the README: $f"; exit 1; }
+          done
+          for f in $(grep -o 'diagrams/[a-z_]*\.svg' bird-meertens/README.md | sort -u); do
+            test -f "bird-meertens/$f" || { echo "missing: bird-meertens/$f"; exit 1; }
+          done
 
       - name: Generate SystemVerilog
         run: |
