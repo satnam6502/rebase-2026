@@ -56,7 +56,7 @@ overlap. CI redraws the diagrams and checks that they match the committed
 files.
 
 ```bash
-lake exe kadane_diagrams     # redraws the SVGs in bird-meertens/diagrams
+lake exe kadane_diagrams     # redraws the Kadane SVGs in bird-meertens/diagrams
 ```
 
 #### 2. Definition of `segs`
@@ -334,6 +334,123 @@ reads its column and the carry into it. After it come the steps above, under
 `adder`. The netlist section's `rippleNet` is the second line, `adder (scanl
 carry c)`, built from gates.
 
+### Each step of the refinement, as a law and a circuit
+
+The diagrams below follow `refine_cla_from_ripple_carry` one step at a time.
+Each step has a law diagram, like the Kadane ones above, and a schematic of
+the circuit after the step.
+
+- **Law diagrams.** They add `5 + 4` with a carry in of 1, in three columns.
+  Bits are written 1 and 0, least significant first. The first column
+  propagates the carry in, the second kills it, and the third generates the
+  carry out.
+- **Schematics.** They show seven columns, with column 0, on the left,
+  carrying the carry in. Time runs down the page: each cell sits one level
+  below the latest of its inputs, so a schematic's height is its depth. The
+  bracket on the right spans the carry chain.
+
+[`diagrams/AdderDiagrams.lean`](diagrams/AdderDiagrams.lean) draws them. Each
+schematic comes from running its line's own `row`, `scanl`, `scan1` or
+`prefixNet` on symbolic wires. Before it is drawn, it is evaluated cell by
+cell with the functions in `Adder.lean`, and it must add correctly on all 2¹⁵
+inputs.
+
+```bash
+lake exe adder_diagrams      # redraws the adder SVGs in bird-meertens/diagrams
+```
+
+#### The ripple-carry adder
+
+The derivation starts from Lava's ripple-carry adder: a row of full adders,
+each passing its carry to the right. The carry chain is as long as the adder.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_circuit_ripple_dark.svg">
+  <img alt="Schematic of a row of seven full adders. The carry in enters the first; each passes its carry to the next, one level lower, so the carry chain is seven levels deep." src="diagrams/adder_circuit_ripple_light.svg">
+</picture>
+
+#### 1. The row law
+
+A row's carries are a scan, and each output reads its column and the carry
+into it. So the row splits into a chain of `carry` cells and a row of sum
+cells. The chain is as deep as before.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_row_law_dark.svg">
+  <img alt="Commuting diagram. From the columns [(1, 0), (0, 0), (1, 1)], row fullAdd c then snoc, and scanl carry c then sumBits, both give [0, 1, 0, 1]." src="diagrams/adder_row_law_light.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_circuit_carry_chain_dark.svg">
+  <img alt="Schematic of a chain of seven carry cells, then a row of sum cells. Each sum cell reads its column and the carry from the column to its left." src="diagrams/adder_circuit_carry_chain_light.svg">
+</picture>
+
+#### 2. carry = g ∨ (p ∧ c)
+
+Each `carry` cell splits into a `gp` cell, which reads only its own column,
+and an `ev` cell on the chain. Scan–map fusion moves the `gp` cells out of the
+scan, so they all work at once, on the first level.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_carry_ev_dark.svg">
+  <img alt="Commuting diagram. From the columns, scanl carry c gives the carries [1, 1, 0, 1]. map gp gives [(0, 1), (0, 0), (1, 0)], and scanl ev c gives the same carries." src="diagrams/adder_carry_ev_light.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_circuit_gp_dark.svg">
+  <img alt="Schematic with a row of seven gp cells on the first level, then a chain of seven ev cells, then the sum cells." src="diagrams/adder_circuit_gp_light.svg">
+</picture>
+
+#### 3. Scan fusion
+
+The chain now carries `(g, p)` pairs, combined by `⊛`, and each carry is the
+`g` of a pair. This works because `fst` takes each `⊛` step to an `ev` step.
+A pair costs more than a bit, but `⊛`, unlike `ev`, is associative.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_scan_fusion_dark.svg">
+  <img alt="Commuting diagram. From [(0, 1), (0, 0), (1, 0)], scanl ev c gives [1, 1, 0, 1]. scanl (⊛) (c, false) gives [(1, 0), (1, 0), (0, 0), (1, 0)], and map fst gives the same carries." src="diagrams/adder_scan_fusion_light.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_circuit_scan_dark.svg">
+  <img alt="Schematic with the gp cells, then a chain of seven ⊛ cells seeded with (c, false), then the sum cells." src="diagrams/adder_circuit_scan_light.svg">
+</picture>
+
+#### 4. Definition of `scan1`
+
+The carry in was the scan's seed. Now it is the first element of the list the
+scan runs over, as the pair `(c, false)`: a column that generates `c` and
+propagates nothing. No cell changes. A `#guard` checks that lines 4 and 5
+build the same circuit, so the schematic above is the circuit of both.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_scan1_dark.svg">
+  <img alt="Commuting diagram. From [(0, 1), (0, 0), (1, 0)], scanl (⊛) (c, false) gives [(1, 0), (1, 0), (0, 0), (1, 0)]. Putting (c, false) in front and taking scan1 (⊛) gives the same list." src="diagrams/adder_scan1_light.svg">
+</picture>
+
+#### 5. Parallel prefix
+
+`⊛` is associative, so the scan's terms can be bracketed in any way. `scan1`
+brackets them to the left, one after another. Sklansky's `prefixNet` brackets
+them as balanced trees, so the last result waits 2 levels on four inputs,
+not 3. At seven columns, eight inputs with the carry in, the carry chain drops
+from 7 levels to 3.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_parallel_prefix_dark.svg">
+  <img alt="Commuting diagram on the inputs q₀ to q₃. scan1 (⊛) gives ((q₀ ⊛ q₁) ⊛ q₂) ⊛ q₃ as its last term, and prefixNet (⊛) gives (q₀ ⊛ q₁) ⊛ (q₂ ⊛ q₃). Both lists of terms evaluate to [(1, 0), (1, 0), (0, 0), (1, 0)]." src="diagrams/adder_parallel_prefix_light.svg">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="diagrams/adder_circuit_sklansky_dark.svg">
+  <img alt="Schematic with the gp cells, then Sklansky's network of twelve ⊛ cells in three levels, then the sum cells. The carry chain is three levels deep." src="diagrams/adder_circuit_sklansky_light.svg">
+</picture>
+
+#### 6. Definition of `cla`
+
+`cla c` is the name of the circuit above, so the last step changes nothing.
+
 ### Why the adder suits a talk
 
 - The spec is the definition of a carry. It assumes nothing about circuits.
@@ -452,8 +569,9 @@ repository root.
 
 ```bash
 lake exe cache get
-lake build BirdMeertens kadane_bench kadane_diagrams adder_netlist   # `lake build` builds them too
+lake build BirdMeertens kadane_bench kadane_diagrams adder_diagrams adder_netlist   # `lake build` builds them too
 lake exe kadane_bench      # the timings and plots; needs only core Lean
 lake exe kadane_diagrams   # the diagrams of the Kadane laws; needs only core Lean
+lake exe adder_diagrams    # the law diagrams and schematics of the adder refinement
 lake exe adder_netlist     # the adder as Verilog; then make -C bird-meertens/netlist lint equiv
 ```
