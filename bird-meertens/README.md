@@ -491,9 +491,10 @@ The step to a parallel prefix network has an algebra of its own:
   [Hardware design and functional programming: a perfect match](https://www.jucs.org/jucs_11_7/hardware_design_and_functional/jucs_11_7_1135_1158_sheeran.html),
   Journal of Universal Computer Science 11(7), 2005.
 - C. Elliott,
-  [Generic functional parallel algorithms: scan and FFT](http://conal.net/papers/generic-parallel-functional/generic-parallel-functional.pdf),
-  ICFP 2017. Scan algorithms follow from a few functor combinators, with no
-  arrays and no indexing.
+  [Generic functional parallel algorithms: scan and FFT](https://doi.org/10.1145/3110251),
+  ICFP 2017 ([free copy](http://conal.net/papers/generic-parallel-functional/generic-parallel-functional.pdf)).
+  Scan algorithms follow from a few functor combinators, with no arrays and no
+  indexing.
 
 Circuits have been derived by refinement before, in Ruby, the relational
 language that this repository's DSL is named after, and described as
@@ -518,9 +519,7 @@ The carry operator `⊛`, and carries as a scan:
   IEEE Transactions on Computers C-31(3), 1982
   ([free copy](https://maths-people.anu.edu.au/~brent/pd/rpb060.pdf)). It
   defines the associative operator on `(g, p)` pairs.
-  [Wikipedia](https://en.wikipedia.org/wiki/Brent%E2%80%93Kung_adder) sketches
-  the step from ripple carry to that operator.
-- G. E. Blelloch, [Prefix sums and their applications](https://www.cs.cmu.edu/~guyb/papers/Ble93.pdf),
+- G. E. Blelloch, [Prefix sums and their applications](https://www.cs.cmu.edu/~scandal/papers/CMU-CS-90-190.html),
   CMU-CS-90-190, 1990. Adding numbers is one of its applications of scan.
 
 Machine-checked proofs of prefix adders, which verify them rather than derive
@@ -535,8 +534,10 @@ them:
   Journal of Applied Mathematics, 2014. Carry-lookahead, Ling and parallel
   prefix adders, verified in Coq for every width.
 
-Two informal explanations:
+Three informal explanations:
 
+- Wikipedia's [Brent–Kung adder](https://en.wikipedia.org/wiki/Brent%E2%80%93Kung_adder)
+  sketches the step from ripple carry to the operator on `(g, p)` pairs.
 - A. Feldmann, [Carry lookahead adders](https://feldmann.nyc/blog/carry-lookahead-adder).
   The carries come from composing one-bit carry functions with a prefix
   network.
