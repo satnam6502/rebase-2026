@@ -289,6 +289,13 @@ def galoisTaps {k : Nat} (step : BitVec k → Bool → BitVec k) : Option (BitVe
   if step 0 false == 0 && shifts && step (unit k (k - 1)) false == taps then some taps else none
 
 #guard linear (lfsrStep poly8) && galoisTaps (lfsrStep poly8) == some poly8
+-- The width-16 step has the same shape. Its linearity is checked on a sample:
+-- every register with one or two bits set, with each message bit.
+#guard galoisTaps (lfsrStep poly16) == some poly16 &&
+  ((List.range k16).flatMap fun i => (List.range k16).map fun j => unit k16 i ^^^ unit k16 j).all fun r =>
+    [false, true].all fun b =>
+      lfsrStep poly16 r b == ((List.range k16).filter (r.getLsbD ·)).foldl
+        (fun acc j => acc ^^^ lfsrStep poly16 (unit k16 j) false) (if b then lfsrStep poly16 0 true else 0)
 -- `lfsrSch` draws the feedback into bit 0, so it needs bit 0 tapped. Every
 -- CRC generator has a constant term, and these do.
 #guard poly8.getLsbD 0 && poly16.getLsbD 0
