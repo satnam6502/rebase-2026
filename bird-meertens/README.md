@@ -463,13 +463,15 @@ from 7 levels to 3.
 
 The closest work is O'Donnell and Rünger's functional pearl. It too turns a
 ripple-carry adder into a carry-lookahead adder by calculation, in Haskell, as
-a semi-formal correctness proof. It meets the same obstacle: the ripple
-adder's carry scan uses a function that is not associative. It finds
-associativity another way. It partially evaluates each column to a function
-that kills, propagates or generates a carry, composes those functions, and
-represents them as data. The derivation here introduces the `(g, p)` pairs
-directly, by scan fusion. It also starts from Lava's row of full adders, and
-Lean checks every step.
+a semi-formal correctness proof, and it draws the circuit at its main stages.
+It meets the same obstacle: the ripple adder's carry scan uses a function that
+is not associative. It finds associativity another way. It partially evaluates
+each column's carry function, composes those functions with `∘`, and then
+represents them as the symbols `K`, `P` and `G`, for kill, propagate and
+generate. A tree-shaped parallel scan finishes the job. The derivation here
+introduces the `(g, p)` pairs directly, by scan fusion, and ends at Sklansky's
+network. It also starts from Lava's row of full adders, and Lean checks every
+step.
 
 - J. T. O'Donnell and G. Rünger,
   [Functional pearl: Derivation of a logarithmic time carry lookahead addition circuit](https://doi.org/10.1017/S0956796804005180),
