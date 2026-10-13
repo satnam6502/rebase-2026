@@ -1,8 +1,8 @@
 name: Build
 
-# Check every definition and proof, and generate the SystemVerilog of all 36
-# designs in both placements. The runner is pinned so that tool versions change
-# only on purpose.
+# Check every definition and proof, check that the Kadane diagrams are up to
+# date, and generate the SystemVerilog of all 36 designs in both placements.
+# The runner is pinned so that tool versions change only on purpose.
 on:
   push:
     branches: [main]
@@ -22,6 +22,12 @@ jobs:
         with:
           build: true
           test: false
+
+      - name: Check that the Kadane diagrams are up to date
+        run: |
+          lake exe kadane_diagrams
+          git status --short -- bird-meertens/diagrams
+          test -z "$(git status --porcelain -- bird-meertens/diagrams)"
 
       - name: Generate SystemVerilog
         run: |
