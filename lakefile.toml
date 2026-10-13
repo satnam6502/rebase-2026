@@ -1,6 +1,6 @@
 name = "ruby"
 version = "0.1.0"
-defaultTargets = ["Ruby", "SquareOfSum", "SquareofSumAristotle", "BirdMeertens", "kadane_bench", "adder_netlist"]
+defaultTargets = ["Ruby", "SquareOfSum", "SquareofSumAristotle", "BirdMeertens", "kadane_bench", "kadane_diagrams", "adder_netlist"]
 testDriver = "RubyTest"
 
 [leanOptions]
@@ -42,3 +42,10 @@ srcDir = "bird-meertens/bench"
 name = "adder_netlist"
 root = "AdderNetlist"
 srcDir = "bird-meertens/netlist"
+
+[[lean_exe]]
+name = "kadane_diagrams"
+root = "KadaneDiagrams"
+srcDir = "bird-meertens/diagrams"
+# No fused multiply-adds, so the SVGs are the same on every machine.
+moreLeancArgs = ["-ffp-contract=off"]

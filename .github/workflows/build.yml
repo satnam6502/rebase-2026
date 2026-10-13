@@ -1,8 +1,8 @@
 name: Build
 
-# Check every definition and proof, and generate the SystemVerilog of all 36
-# designs in both placements. The runner is pinned so that tool versions change
-# only on purpose.
+# Check every definition and proof, check that the Kadane diagrams are up to
+# date, and generate the SystemVerilog of all 36 designs in both placements.
+# The runner is pinned so that tool versions change only on purpose.
 on:
   push:
     branches: [main]
@@ -22,6 +22,28 @@ jobs:
         with:
           build: true
           test: false
+
+      - name: Check that the Kadane diagrams are up to date
+        run: |
+          lake exe kadane_diagrams
+          git add --intent-to-add -- bird-meertens/diagrams
+          git diff --exit-code -- bird-meertens/diagrams || {
+            echo "::error::The Kadane diagrams are stale. Run 'lake exe kadane_diagrams' with the toolchain in lean-toolchain, and commit the result."
+            exit 1
+          }
+          # Every SVG is well-formed XML.
+          python3 -c 'import sys, xml.etree.ElementTree as E; [E.parse(f) for f in sys.argv[1:]]' bird-meertens/diagrams/*.svg
+          # The README shows every diagram in a <picture>, light and dark, and
+          # every diagram it shows exists.
+          for f in bird-meertens/diagrams/*.svg; do
+            n=$(basename "$f" .svg); n=${n%_light}; n=${n%_dark}
+            grep -qF "src=\"diagrams/${n}_light.svg\"" bird-meertens/README.md &&
+              grep -qF "srcset=\"diagrams/${n}_dark.svg\"" bird-meertens/README.md ||
+              { echo "::error::bird-meertens/README.md does not show $n in light and dark"; exit 1; }
+          done
+          for f in $(grep -oE '(src|srcset)="diagrams/[A-Za-z0-9_-]*\.svg"' bird-meertens/README.md | grep -oE 'diagrams/[A-Za-z0-9_-]*\.svg' | sort -u); do
+            test -f "bird-meertens/$f" || { echo "::error::bird-meertens/README.md shows a missing bird-meertens/$f"; exit 1; }
+          done
 
       - name: Generate SystemVerilog
         run: |
