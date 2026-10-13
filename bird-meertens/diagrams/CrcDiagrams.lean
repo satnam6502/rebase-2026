@@ -102,6 +102,41 @@ def hornerMod (g : Poly) (k : Nat) (p : Poly) (b : Bool) : Poly := (hornerShift 
 def crc {k : Nat} (poly : BitVec k) (bs : List Bool) : Poly :=
   ((msgPoly bs).shift k).mod (Poly.gen poly)
 
+/-! ## The examples
+
+Every constant the diagrams write is derived from these. -/
+
+/-- The bit-level example: CRC-8/SMBUS, the generator of `crc8.sv`, on `1011`. -/
+def k8 : Nat := 8
+def poly8 : BitVec k8 := BitVec.ofNat k8 0x07
+def msg : List Bool := [true, false, true, true]
+
+/-- The byte-level example: CRC-16/XMODEM on the bytes of `"12"`. -/
+def k16 : Nat := 16
+def poly16 : BitVec k16 := BitVec.ofNat k16 0x1021
+def bytes : List (BitVec 8) := [0x31#8, 0x32#8]
+
+/-- A register or a byte, in hexadecimal: `0x1021`. -/
+def hex {k : Nat} (r : BitVec k) : String :=
+  let ds := (Nat.toDigits 16 r.toNat).map Char.toUpper
+  "0x" ++ String.ofList (List.replicate ((k + 3) / 4 - ds.length) '0' ++ ds)
+
+/-- `n` as subscript digits. -/
+def sub (n : Nat) : String := (toString n).map fun ch => Char.ofNat (ch.toNat - '0'.toNat + 0x2080)
+
+/-- The two generators, and `Xᵏ` for the bit-level width, as the diagrams write them. -/
+def P8 : String := hex poly8
+def P16 : String := hex poly16
+def X8 : String := Poly.xPow k8
+
+/-- The top byte of a `k16`-bit register: `r₁₅…₈`. -/
+def topByte : String := s!"r{sub (k16 - 1)}…{sub (k16 - 8)}"
+
+-- The names CRC-8/SMBUS and CRC-16/XMODEM are pinned by the catalogue's check
+-- values on "123456789": 0xF4 and 0x31C3.
+#guard foldl (tableStep (table poly8)) 0 BirdMeertens.CRC.check == BitVec.ofNat k8 0xF4
+#guard foldl (tableStep (table poly16)) 0 BirdMeertens.CRC.check == BitVec.ofNat k16 0x31C3
+
 /-- Every message of `n` bits. -/
 def messages : Nat → List (List Bool)
   | 0 => [[]]
@@ -111,9 +146,14 @@ def messages : Nat → List (List Bool)
 -- specification's remainder, for every message of up to 8 bits (CRC-8) and of
 -- up to 5 bits (CRC-16). That is `crc_eq_lfsr`, run.
 #guard (List.range 9).all fun n => (messages n).all fun bs =>
-  Poly.ofReg (foldl (lfsrStep 0x07#8) 0 bs) == crc 0x07#8 bs
+  Poly.ofReg (foldl (lfsrStep poly8) 0 bs) == crc poly8 bs
 #guard (List.range 6).all fun n => (messages n).all fun bs =>
-  Poly.ofReg (foldl (lfsrStep 0x1021#16) 0 bs) == crc 0x1021#16 bs
+  Poly.ofReg (foldl (lfsrStep poly16) 0 bs) == crc poly16 bs
+-- And on a long message, which divides many times: the 72 bits of "123456789".
+#guard Poly.ofReg (foldl (lfsrStep poly8) 0 (flatten (BirdMeertens.CRC.check.map bitsOf))) ==
+    crc poly8 (flatten (BirdMeertens.CRC.check.map bitsOf)) &&
+  Poly.ofReg (foldl (lfsrStep poly16) 0 (flatten (BirdMeertens.CRC.check.map bitsOf))) ==
+    crc poly16 (flatten (BirdMeertens.CRC.check.map bitsOf))
 
 /-! ## Values as text -/
 
@@ -127,10 +167,6 @@ instance {k : Nat} : Draw (Bits k) :=
 /-- A register or a byte, drawn in hexadecimal. -/
 structure Hex (k : Nat) where
   r : BitVec k
-
-def hex {k : Nat} (r : BitVec k) : String :=
-  let ds := (Nat.toDigits 16 r.toNat).map Char.toUpper
-  "0x" ++ String.ofList (List.replicate ((k + 3) / 4 - ds.length) '0' ++ ds)
 
 instance {k : Nat} : Draw (Hex k) := ⟨0, fun ⟨r⟩ => [(hex r, .value)]⟩
 
@@ -151,14 +187,6 @@ def Term.eval {α : Type} (e : α) (f : α → Bool → α) : Term → α
 
 /-! ## The laws -/
 
-/-- The bit-level example: CRC-8/SMBUS, the generator of `crc8.sv`, on `1011`. -/
-def poly8 : BitVec 8 := 0x07#8
-def msg : List Bool := [true, false, true, true]
-
-/-- The byte-level example: CRC-16/XMODEM on the bytes of `"12"`. -/
-def poly16 : BitVec 16 := 0x1021#16
-def bytes : List (BitVec 8) := [0x31#8, 0x32#8]
-
 -- The model agrees on the byte-level examples too, through the table: on the
 -- two bytes drawn here, and on the catalogue's check string "123456789", whose
 -- CRC-16/XMODEM is 0x31C3.
@@ -170,7 +198,7 @@ def laws : List Law :=
   let g := Poly.gen poly8
   let t := msg.foldl Term.step Term.seed
   let hornerText := t.text "0" fun s b => s!"{s}·X + {if b then "1" else "0"}"
-  let shiftText := t.text "0" fun s b => s!"{s}·X + {if b then "X⁸" else "0"}"
+  let shiftText := t.text "0" fun s b => s!"{s}·X + {if b then X8 else "0"}"
   let reg := foldl (lfsrStep poly8) 0 msg
   let bitLists := bytes.map bitsOf
   let r₁ := byteStep poly16 0 (bytes.headD 0)
@@ -184,53 +212,53 @@ def laws : List Law :=
       after := [("foldl horner 0", node2 hornerText (t.eval ⟨0⟩ horner))],
       note := ["horner p b = p·X + b"] },
     { file := "crc_shift_fusion", name := "Shift fusion",
-      statement := "(· * X⁸) ∘ foldl horner 0 = foldl (hornerShift 8) 0",
+      statement := s!"(· * {X8}) ∘ foldl horner 0 = foldl (hornerShift {k8}) 0",
       start := node msg,
       before := [("foldl horner 0", node (foldl horner ⟨0⟩ msg)),
-        ("· * X⁸", node ((foldl horner ⟨0⟩ msg).shift 8))],
-      after := [("foldl (hornerShift 8) 0", node2 shiftText (t.eval ⟨0⟩ (hornerShift 8)))],
+        (s!"· * {X8}", node ((foldl horner ⟨0⟩ msg).shift k8))],
+      after := [(s!"foldl (hornerShift {k8}) 0", node2 shiftText (t.eval ⟨0⟩ (hornerShift k8)))],
       note := ["hornerShift k p b = p·X + b·Xᵏ"] },
     { file := "crc_mod_fusion", name := "Reduction fusion",
-      statement := "(· %ₘ g) ∘ foldl (hornerShift 8) 0 = foldl (hornerMod g 8) 0",
+      statement := s!"(· %ₘ g) ∘ foldl (hornerShift {k8}) 0 = foldl (hornerMod g {k8}) 0",
       start := node msg,
-      before := [("foldl (hornerShift 8) 0", node (foldl (hornerShift 8) ⟨0⟩ msg)),
-        ("· %ₘ g", node ((foldl (hornerShift 8) ⟨0⟩ msg).mod g))],
-      after := [("foldl (hornerMod g 8) 0", node (foldl (hornerMod g 8) ⟨0⟩ msg))],
+      before := [(s!"foldl (hornerShift {k8}) 0", node (foldl (hornerShift k8) ⟨0⟩ msg)),
+        ("· %ₘ g", node ((foldl (hornerShift k8) ⟨0⟩ msg).mod g))],
+      after := [(s!"foldl (hornerMod g {k8}) 0", node (foldl (hornerMod g k8) ⟨0⟩ msg))],
       note := [s!"g = {g.text}", "hornerMod g k p b = (p·X + b·Xᵏ) %ₘ g"] },
     { file := "crc_refine_fusion", name := "Data refinement",
-      statement := "foldl (hornerMod g 8) 0 = toPoly ∘ foldl (lfsrStep 0x07) 0",
+      statement := s!"foldl (hornerMod g {k8}) 0 = toPoly ∘ foldl (lfsrStep {P8}) 0",
       start := node msg,
-      before := [("foldl (hornerMod g 8) 0", node (foldl (hornerMod g 8) ⟨0⟩ msg))],
-      after := [("foldl (lfsrStep 0x07) 0", node (Bits.mk reg)), ("toPoly", node (Poly.ofReg reg))],
-      note := [lfsrNote, "toPoly r = Σ rᵢ·Xⁱ, so bit 7, on the left, is the coefficient of X⁷"] },
+      before := [(s!"foldl (hornerMod g {k8}) 0", node (foldl (hornerMod g k8) ⟨0⟩ msg))],
+      after := [(s!"foldl (lfsrStep {P8}) 0", node (Bits.mk reg)), ("toPoly", node (Poly.ofReg reg))],
+      note := [lfsrNote, s!"toPoly r = Σ rᵢ·Xⁱ, so bit {k8 - 1}, on the left, is the coefficient of {Poly.xPow (k8 - 1)}"] },
     { file := "crc_fold_concat", name := "Fold over concatenation",
       statement := "foldl f e ∘ flatten = foldl (foldl f) e",
       start := node bitLists,
       before := [("flatten", node (flatten bitLists)),
-        ("foldl (lfsrStep 0x1021) 0", node (Hex.mk (foldl (lfsrStep poly16) 0 (flatten bitLists))))],
-      after := [("foldl (foldl (lfsrStep 0x1021)) 0",
+        (s!"foldl (lfsrStep {P16}) 0", node (Hex.mk (foldl (lfsrStep poly16) 0 (flatten bitLists))))],
+      after := [(s!"foldl (foldl (lfsrStep {P16})) 0",
         node (Hex.mk (foldl (foldl (lfsrStep poly16)) 0 bitLists)))],
-      note := ["f = lfsrStep 0x1021 and e = 0, for CRC-16/XMODEM"],
+      note := [s!"f = lfsrStep {P16} and e = 0, for CRC-16/XMODEM"],
       arc := true },
     { file := "crc_fold_map", name := "Fold–map fusion",
       statement := "foldl (foldl f) e ∘ map bitsOf = foldl byteStep e",
       start := node (bytes.map Hex.mk),
       before := [("map bitsOf", node bitLists),
-        ("foldl (foldl (lfsrStep 0x1021)) 0", node (Hex.mk (foldl (foldl (lfsrStep poly16)) 0 bitLists)))],
-      after := [("foldl (byteStep 0x1021) 0", node (Hex.mk (foldl (byteStep poly16) 0 bytes)))],
+        (s!"foldl (foldl (lfsrStep {P16})) 0", node (Hex.mk (foldl (foldl (lfsrStep poly16)) 0 bitLists)))],
+      after := [(s!"foldl (byteStep {P16}) 0", node (Hex.mk (foldl (byteStep poly16) 0 bytes)))],
       note := ["byteStep poly r x = foldl (lfsrStep poly) r (bitsOf x)",
         "bitsOf x lists the bits of x, most significant first"],
       arc := true },
     { file := "crc_table", name := "Sarwate's table",
       statement := "byteStep poly = tableStep (table poly), for a width of 8 or more",
       start := node (Hex.mk r₁, Hex.mk x),
-      before := [("byteStep 0x1021", node (Hex.mk (byteStep poly16 r₁ x)))],
-      after := [("tableStep (table 0x1021)",
+      before := [(s!"byteStep {P16}", node (Hex.mk (byteStep poly16 r₁ x)))],
+      after := [(s!"tableStep (table {P16})",
         [[(s!"{hex (r₁ <<< 8)} ⊕ table ({hex top} ⊕ {hex x})", .value)],
          [("= ", .label), (s!"{hex (r₁ <<< 8)} ⊕ {hex (table poly16 (top ^^^ x))}", .value)],
          ("= ", .label) :: Draw.spans (Hex.mk (tableStep (table poly16) r₁ x))])],
-      note := ["the start is (r, x): the register after the byte 0x31, and the byte 0x32",
-        "tableStep t r x = (r <<< 8) ⊕ t (r₁₅…₈ ⊕ x)",
+      note := [s!"the start is (r, x): the register after the byte {hex (bytes.headD 0)}, and the byte {hex x}",
+        s!"tableStep t r x = (r <<< 8) ⊕ t ({topByte} ⊕ x)",
         "table poly i = byteStep poly 0 i, the CRC of the single byte i"] } ]
 
 /-! ## Finding the LFSR in `lfsrStep`
@@ -328,9 +356,6 @@ structure Sch where
 /-- The row of most blocks. -/
 def rowY : Float := top0 + 48
 
-/-- `n` as subscript digits. -/
-def sub (n : Nat) : String := (toString n).map fun ch => Char.ofNat (ch.toNat - '0'.toNat + 0x2080)
-
 def io (id s : String) : Blk := ⟨id, .io, 0, 0, [s]⟩
 def box (id : String) (ls : List String) : Blk := ⟨id, .box, 0, 0, ls⟩
 def reg (id : String) (ls : List String) : Blk := ⟨id, .reg, 0, 0, ls⟩
@@ -378,10 +403,10 @@ def machine (file name line : String) (input : List (Blk × String)) (step : Lis
 /-- The specification, as a pipeline over the whole message. -/
 def specSch : Sch :=
   let (blks, wires) := pipeline (M + 4) rowY
-    [(io "m" "M", ""), (box "msg" ["msgPoly"], "n bits"), (box "shift" ["· * X⁸"], "n coefficients"),
-     (box "mod" ["· %ₘ g"], "n + 8"), (io "out" "CRC", "8")]
+    [(io "m" "M", ""), (box "msg" ["msgPoly"], "n bits"), (box "shift" [s!"· * {X8}"], "n coefficients"),
+     (box "mod" ["· %ₘ g"], s!"n + {k8}"), (io "out" "CRC", toString k8)]
   { file := "crc_circuit_spec", name := "The specification: the whole message at once",
-    line := "(· %ₘ g) ∘ (· * X⁸) ∘ msgPoly", blks, wires,
+    line := s!"(· %ₘ g) ∘ (· * {X8}) ∘ msgPoly", blks, wires,
     legend := ["The label on each wire counts the coefficients it carries.",
       "Nothing is computed until the whole message has arrived."],
     w := widthOf blks, h := rowY + 34 }
@@ -432,7 +457,7 @@ for each bit of the byte, most significant first, and takes the last one's
 result at the next clock. The stages come from `bitsOf`. -/
 def byteStepSch : Sch := Id.run do
   let n := (bitsOf 0).length
-  let stages : List (Blk × String) := (reg "reg" ["r", "16 bits"], "") ::
+  let stages : List (Blk × String) := (reg "reg" ["r", s!"{k16} bits"], "") ::
     (List.range n).map fun i => (box s!"s{i}" ["step"], "")
   let (blks, wires) := pipeline (M + 4) (rowY + 24) stages
   let ins : List Blk := (List.range n).map fun i =>
@@ -449,8 +474,8 @@ def byteStepSch : Sch := Id.run do
     (last.x + last.half.1 + 16, yb), (r.x, yb), r.bottom], ends := [last.id, r.id] }
   return ({
     file := "crc_circuit_bytestep", name := "byteStep: eight clocks in one",
-    line := "toPoly ∘ foldl (byteStep 0x1021) 0", blks := blks ++ ins, wires := wires ++ inWires ++ [back],
-    legend := ["step is lfsrStep 0x1021. Stage i takes bit i of bitsOf x, the most significant first.",
+    line := s!"toPoly ∘ foldl (byteStep {P16}) 0", blks := blks ++ ins, wires := wires ++ inWires ++ [back],
+    legend := [s!"step is lfsrStep {P16}. Stage i takes bit i of bitsOf x, the most significant first.",
       "The register now changes once a byte, not once a bit."],
     w := last.x + last.half.1 + 16 + M, h := yb + 14 } : Sch)
 
@@ -459,12 +484,12 @@ lookup replaces eight clocks, and the rest of the register shifts up a byte. -/
 def tableSch : Sch :=
   let yU := rowY
   let yL := rowY + 76
-  let r : Blk := ⟨"reg", .reg, M + 40, (yU + yL) / 2, ["r", "16 bits"]⟩
+  let r : Blk := ⟨"reg", .reg, M + 40, (yU + yL) / 2, ["r", s!"{k16} bits"]⟩
   let sh : Blk := ⟨"sh", .box, M + 190, yU, ["r <<< 8"]⟩
-  let tb : Blk := ⟨"tb", .box, M + 190, yL, ["r₁₅…₈"]⟩
+  let tb : Blk := ⟨"tb", .box, M + 190, yL, [topByte]⟩
   let x1 : Blk := ⟨"x1", .xor, M + 330, yL, []⟩
   let xi : Blk := ⟨"xi", .io, M + 330, yL + 46, ["x"]⟩
-  let tab : Blk := ⟨"tab", .box, M + 470, yL, ["table 0x1021", "256 entries"]⟩
+  let tab : Blk := ⟨"tab", .box, M + 470, yL, [s!"table {P16}", "256 entries"]⟩
   let x2 : Blk := ⟨"x2", .xor, M + 600, yU, []⟩
   let jx := r.x + r.half.1 + 22
   let yTop := yU - 36
@@ -480,8 +505,8 @@ def tableSch : Sch :=
       { pts := [tab.right, (x2.x, yL), x2.bottom], ends := [tab.id, x2.id] },
       { pts := [x2.right, (x2.x + 24, yU), (x2.x + 24, yTop), (r.x, yTop), r.top], ends := [x2.id, r.id] } ]
   { file := "crc_circuit_table", name := "Sarwate's table: one lookup a byte",
-    line := "toPoly ∘ foldl (tableStep (table 0x1021)) 0", blks, wires,
-    legend := ["table i = byteStep 0x1021 0 i, computed once: 256 entries of 16 bits.",
+    line := s!"toPoly ∘ foldl (tableStep (table {P16})) 0", blks, wires,
+    legend := [s!"table i = byteStep {P16} 0 i, computed once: 256 entries of {k16} bits.",
       "Reduction modulo g is linear, which is why one lookup can stand for eight clocks."],
     w := x2.x + 24 + M + 10, h := yL + 46 + 14 }
 
@@ -490,32 +515,33 @@ def schematics : List Sch :=
   let taps := (galoisTaps (lfsrStep poly8)).getD 0
   [ specSch,
     machine "crc_circuit_horner" "Horner's rule: a loop, but its state grows"
-      "(· %ₘ g) ∘ (· * X⁸) ∘ foldl horner 0"
+      s!"(· %ₘ g) ∘ (· * {X8}) ∘ foldl horner 0"
       [(io "b" "b", "")] ["p·X + b"] "" ["p", "n coefficients"]
-      [(box "shift" ["· * X⁸"], "after the last bit"), (box "mod" ["· %ₘ g"], "n + 8"), (io "out" "CRC", "8")]
+      [(box "shift" [s!"· * {X8}"], "after the last bit"), (box "mod" ["· %ₘ g"], s!"n + {k8}"),
+       (io "out" "CRC", toString k8)]
       ["Each message bit b enters the step, and the register keeps the result.",
        "After the last bit, p is the whole message polynomial."],
     machine "crc_circuit_shift" "Shift fusion: the shift moves into the loop"
-      "(· %ₘ g) ∘ foldl (hornerShift 8) 0"
-      [(io "b" "b", "")] ["p·X + b·X⁸"] "" ["p", "n + 8 coefficients"]
-      [(box "mod" ["· %ₘ g"], "after the last bit"), (io "out" "CRC", "8")]
-      ["Each bit enters at X⁸, so the register grows to n + 8 coefficients."],
-    machine "crc_circuit_mod" "Reduction fusion: the state stays at 8 coefficients"
-      "foldl (hornerMod g 8) 0"
-      [(io "b" "b", "")] ["(p·X + b·X⁸) %ₘ g"] "" ["p", "8 coefficients"]
+      s!"(· %ₘ g) ∘ foldl (hornerShift {k8}) 0"
+      [(io "b" "b", "")] [s!"p·X + b·{X8}"] "" ["p", s!"n + {k8} coefficients"]
+      [(box "mod" ["· %ₘ g"], "after the last bit"), (io "out" "CRC", toString k8)]
+      [s!"Each bit enters at {X8}, so the register grows to n + {k8} coefficients."],
+    machine "crc_circuit_mod" s!"Reduction fusion: the state stays at {k8} coefficients"
+      s!"foldl (hornerMod g {k8}) 0"
+      [(io "b" "b", "")] [s!"(p·X + b·{X8}) %ₘ g"] "" ["p", s!"{k8} coefficients"]
       [(io "out" "CRC", "after the last bit")]
-      ["Reducing after every bit keeps p below degree 8."],
-    lfsrSch "crc_circuit_lfsr" "Data refinement: an 8-bit LFSR, which is crc8.sv"
-      "toPoly ∘ foldl (lfsrStep 0x07) 0" taps
-      ["The taps are the bits of 0x07, found by running lfsrStep on each unit input.",
+      [s!"Reducing after every bit keeps p below degree {k8}."],
+    lfsrSch "crc_circuit_lfsr" s!"Data refinement: an {k8}-bit LFSR, which is crc8.sv"
+      s!"toPoly ∘ foldl (lfsrStep {P8}) 0" taps
+      [s!"The taps are the bits of {P8}, found by running lfsrStep on each unit input.",
        "Bit rᵢ holds the coefficient of Xⁱ. Each clock shifts the register up one bit.",
        "crc8.sv has exactly these gates: crc8Next_eq_lfsrStep proves it."],
     machine "crc_circuit_serial" "A byte at a time, through the bit-serial LFSR"
-      "toPoly ∘ foldl (lfsrStep 0x1021) 0 ∘ flatten ∘ map bitsOf"
-      [(io "x" "x", ""), (box "bits" ["bitsOf"], "a byte")] ["lfsrStep 0x1021"] "b"
-      ["r", "16 bits"] [(box "poly" ["toPoly"], "after the last byte"), (io "out" "CRC", "")]
+      s!"toPoly ∘ foldl (lfsrStep {P16}) 0 ∘ flatten ∘ map bitsOf"
+      [(io "x" "x", ""), (box "bits" ["bitsOf"], "a byte")] [s!"lfsrStep {P16}"] "b"
+      ["r", s!"{k16} bits"] [(box "poly" ["toPoly"], "after the last byte"), (io "out" "CRC", "")]
       ["bitsOf turns each byte into eight bits, most significant first: eight clocks a byte.",
-       "Folding over the bytes in turn, as foldl (foldl (lfsrStep 0x1021)) 0, changes nothing here."],
+       s!"Folding over the bytes in turn, as foldl (foldl (lfsrStep {P16})) 0, changes nothing here."],
     byteStepSch,
     tableSch ]
 
