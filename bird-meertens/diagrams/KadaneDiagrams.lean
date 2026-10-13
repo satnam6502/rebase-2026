@@ -576,8 +576,9 @@ def Pic.linePoints (p : Pic) : List (Float × Float) :=
     along fun t => (x₀ + (x₁ - x₀) * t, y₀ + (y₁ - y₀) * t)) ++
   p.arcs.flatMap fun a => along a.at
 
-/-- A fault in a layout: a coordinate that is not finite, a text off the page,
-two texts that overlap, or a line through a text. It checks text against the estimate in `textRect`, and
+/-- A fault in a layout: a coordinate that is not finite, a text off the page
+(left or right of it, over the title, or below the last row), two texts that
+overlap, or a line through a text. It checks text against the estimate in `textRect`, and
 lines at the points of `linePoints`. -/
 def Pic.fault (p : Pic) : Option String :=
   let ts := p.texts
@@ -585,7 +586,8 @@ def Pic.fault (p : Pic) : Option String :=
   let corners := pts ++ p.boxes.map (fun (b : Box) => (b.cx, b.y)) ++
     ts.map (fun ((_, r) : String × Rect) => (r.l, r.t))
   let finite := corners.all fun (x, y) => x.isFinite && y.isFinite
-  let off := ts.find? fun (_, r) => r.l < 0 || r.r > p.w
+  -- The page, between the statement under the title and the last row.
+  let off := ts.find? fun (_, r) => r.l < 0 || r.r > p.w || r.t < top0 - 28 || r.b > p.h
   let clash := (List.range ts.length).findSome? fun i => (List.range i).findSome? fun j =>
     if ts[i]!.2.meets ts[j]!.2 then some s!"{ts[j]!.1} overlaps {ts[i]!.1}" else none
   let crossed := ts.find? fun (_, r) => pts.any fun (x, y) => r.contains x y
@@ -598,19 +600,24 @@ def Pic.fault (p : Pic) : Option String :=
 
 /-! The checks catch what they are meant to. -/
 
-/-- Nodes and arrows on a page 100 px wide. -/
+/-- Nodes and arrows on a page 100 px wide, with rows from `top0` to 300. -/
 def testPic (boxes : List Box) (arrows : List Arrow := []) : Pic :=
-  { boxes, arrows, eqs := [], w := 100, h := 120 }
+  { boxes, arrows, eqs := [], w := 100, h := 300 }
 
-#guard (testPic [⟨node (1 : Int), 50, 0⟩]).fault.isNone
-#guard (testPic [⟨node (1 : Int), 50, 0⟩, ⟨node (2 : Int), 54, 4⟩]).fault.isSome
-#guard (testPic [⟨node (12345 : Int), 0, 0⟩]).fault.isSome
+/-- The number `n`, centred at `x`, with its top at `y`. -/
+def numAt (n : Int) (x y : Float) : Box := ⟨node n, x, y⟩
+
+#guard (testPic [numAt 1 50 top0]).fault.isNone
+#guard (testPic [numAt 1 50 top0, numAt 2 54 (top0 + 4)]).fault.isSome
+#guard (testPic [numAt 12345 0 top0]).fault.isSome
+#guard (testPic [numAt 1 50 0]).fault.isSome
+#guard (testPic [numAt 1 50 290]).fault.isSome
 #guard
   -- An arrow of length 0 has no direction.
-  let (a, b) : Box × Box := (⟨node (1 : Int), 50, 0⟩, ⟨node (2 : Int), 50, 24⟩)
+  let (a, b) := (numAt 1 50 top0, numAt 2 50 (top0 + 24))
   (testPic [a, b] [⟨a, b, 50, 50, "f", false⟩]).fault == some "a coordinate is not finite"
 #guard
-  let (a, b, c) : Box × Box × Box := (⟨node (1 : Int), 50, 0⟩, ⟨node (2 : Int), 50, 100⟩, ⟨node (3 : Int), 50, 50⟩)
+  let (a, b, c) := (numAt 1 50 top0, numAt 2 50 (top0 + 100), numAt 3 50 (top0 + 50))
   ((testPic [a, b, c] [⟨a, b, 50, 50, "f", false⟩]).fault.map (·.startsWith "a line crosses")).getD false
 #guard result [("f", node (2 : Int))] != result [("g", node2 "e" (6 : Int))]
 #guard result [("f", node (2 : Int))] == result [("g", node2 "e" (2 : Int))]

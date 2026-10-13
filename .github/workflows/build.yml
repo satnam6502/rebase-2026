@@ -28,7 +28,7 @@ jobs:
           lake exe kadane_diagrams
           git add --intent-to-add -- bird-meertens/diagrams
           git diff --exit-code -- bird-meertens/diagrams || {
-            echo "::error::The Kadane diagrams are stale. Run 'lake exe kadane_diagrams' and commit the result."
+            echo "::error::The Kadane diagrams are stale. Run 'lake exe kadane_diagrams' with the toolchain in lean-toolchain, and commit the result."
             exit 1
           }
           # Every SVG is well-formed XML.
