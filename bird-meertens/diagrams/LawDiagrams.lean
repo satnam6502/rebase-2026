@@ -567,6 +567,10 @@ def numAt (n : Int) (x y : Float) : Box := ⟨node n, x, y⟩
 #guard
   let (a, b, c) := (numAt 1 50 top0, numAt 2 50 (top0 + 100), numAt 3 50 (top0 + 50))
   ((testPic [a, b, c] [⟨a, b, 50, 50, "f", false⟩]).fault.map (·.startsWith "a line crosses")).getD false
+-- `fit` repairs a label past either edge: it moves the diagram right, or widens the page.
+#guard (testPic [numAt 12345 0 top0]).fit.fault.isNone
+#guard (testPic [numAt 12345 100 top0]).fit.fault.isNone
+#guard (testPic [numAt 12345 0 top0]).fit.texts.all (·.2.l ≥ 8)
 #guard result [("f", node (2 : Int))] != result [("g", node2 "e" (6 : Int))]
 #guard result [("f", node (2 : Int))] == result [("g", node2 "e" (2 : Int))]
 

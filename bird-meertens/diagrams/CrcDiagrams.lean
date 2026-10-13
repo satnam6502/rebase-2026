@@ -289,6 +289,9 @@ def galoisTaps {k : Nat} (step : BitVec k → Bool → BitVec k) : Option (BitVe
   if step 0 false == 0 && shifts && step (unit k (k - 1)) false == taps then some taps else none
 
 #guard linear (lfsrStep poly8) && galoisTaps (lfsrStep poly8) == some poly8
+-- `lfsrSch` draws the feedback into bit 0, so it needs bit 0 tapped. Every
+-- CRC generator has a constant term, and these do.
+#guard poly8.getLsbD 0 && poly16.getLsbD 0
 -- `crc8.sv` has the same taps, as `crc8Next_eq_lfsrStep` proves.
 #guard linear crc8Next && galoisTaps crc8Next == some poly8
 
