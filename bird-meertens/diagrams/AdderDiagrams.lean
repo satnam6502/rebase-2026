@@ -49,10 +49,11 @@ def PTm.text : PTm → String
     let w (t : PTm) (s : String) := match t with | .q _ => s | .op .. => s!"({s})"
     s!"{w a a.text} ⊛ {w b b.text}"
 
-/-- The term's value, given the values of the inputs. -/
-def PTm.eval (qs : List (Bool × Bool)) : PTm → Bool × Bool
-  | .q i => qs.getD i (false, false)
-  | .op a b => a.eval qs ⊛ b.eval qs
+/-- The term's value, given the values of the inputs. `none` if it names an
+input that is not there. -/
+def PTm.eval (qs : List (Bool × Bool)) : PTm → Option (Bool × Bool)
+  | .q i => qs[i]?
+  | .op a b => return (← a.eval qs) ⊛ (← b.eval qs)
 
 /-- The carry in of the example. -/
 def c : Bool := true
@@ -67,8 +68,8 @@ def qs : List (Bool × Bool) := (c, false) :: map gp xs
 def syms : List PTm := (List.range qs.length).map PTm.q
 
 -- The written-out terms evaluate to what the scan and the network compute.
-#guard (scan1 PTm.op syms).map (·.eval qs) == scan1 (· ⊛ ·) qs
-#guard (prefixNet PTm.op syms).map (·.eval qs) == prefixNet (· ⊛ ·) qs
+#guard (scan1 PTm.op syms).mapM (PTm.eval qs) == some (scan1 (· ⊛ ·) qs)
+#guard (prefixNet PTm.op syms).mapM (PTm.eval qs) == some (prefixNet (· ⊛ ·) qs)
 
 /-- One diagram for each step of `refine_cla_from_ripple_carry` that applies a
 law, in order. The last step, the definition of `cla`, only names the circuit. -/
@@ -107,8 +108,8 @@ def laws : List Law :=
     { file := "adder_parallel_prefix", name := "Parallel prefix",
       statement := "scan1 (⊛) = prefixNet (⊛), because ⊛ is associative",
       start := node2 (syms.map PTm.text) qs,
-      before := [("scan1 (⊛)", node2 (scanT.map PTm.text) (scanT.map (·.eval qs)))],
-      after := [("prefixNet (⊛)", node2 (netT.map PTm.text) (netT.map (·.eval qs)))],
+      before := [("scan1 (⊛)", node2 (scanT.map PTm.text) ((scanT.mapM (PTm.eval qs)).getD []))],
+      after := [("prefixNet (⊛)", node2 (netT.map PTm.text) ((netT.mapM (PTm.eval qs)).getD []))],
       note := ["(a ⊛ b) ⊛ c = a ⊛ (b ⊛ c)"] } ]
 
 /-! ## Circuits as terms
@@ -200,8 +201,11 @@ def circuits : List Circuit :=
       line := "adder (map fst ∘ prefixNet (⊛) ∘ ((c, false) :: ·) ∘ map gp)", pairs := true,
       outs := adderOuts (prefixNet dotW (cin :: gpW)) } ]
 
+/-- The circuit drawn in file `f`. -/
+def circuit (f : String) : Circuit := (circuits.find? (·.file == f)).getD default
+
 -- The definition of `scan1` changes no cell: lines 4 and 5 build the same circuit.
-#guard (circuits.getD 3 default).outs == line5
+#guard (circuit "adder_circuit_scan").outs == line5
 
 /-! ## Checking that each circuit adds -/
 
@@ -216,33 +220,41 @@ def V.toBit : V → Bool
   | .bit b => b
   | .pair q => q.1
 
-def V.toPair : V → Bool × Bool
-  | .pair q => q
-  | .bit b => (b, false)
+/-- A wire's pair. `none` for a bit: no cell reads a bit as a pair. -/
+def V.toPair : V → Option (Bool × Bool)
+  | .pair q => some q
+  | .bit _ => none
 
-/-- The value of a wire, with each cell computed by its function in `Adder.lean`. -/
-partial def Wire.eval (cin : V) (xs : List Col) : Wire → V
-  | .inp 0 => cin
-  | .inp (k + 1) => .pair (xs.getD k (false, false))
-  | .cell k args o =>
-    let vs := args.map (Wire.eval cin xs)
-    let (a, b) := (vs.getD 0 default, vs.getD 1 default)
-    match k with
-    | .fa => let r := fullAdd a.toBit b.toPair; .bit (if o == 0 then r.1 else r.2)
-    | .maj => .bit (carry a.toBit b.toPair)
-    | .gp => .pair (gp a.toPair)
-    | .ev => .bit (ev a.toBit b.toPair)
-    | .dot => .pair (a.toPair ⊛ b.toPair)
-    | .xor => .bit ((a.toPair.1 ^^ a.toPair.2) ^^ b.toBit)
+/-- The value of a wire, with each cell computed by its function in `Adder.lean`.
+`none` if the wire is malformed: a cell with the wrong inputs for its kind, a
+bit where a pair belongs, or a column the operands do not have. -/
+partial def Wire.eval (cin : V) (xs : List Col) : Wire → Option V
+  | .inp 0 => some cin
+  | .inp (k + 1) => xs[k]?.map .pair
+  | .cell k args o => do
+    let vs ← args.mapM (Wire.eval cin xs)
+    match k, vs, o with
+    | .fa, [a, b], 0 => return .bit (fullAdd a.toBit (← b.toPair)).1
+    | .fa, [a, b], 1 => return .bit (fullAdd a.toBit (← b.toPair)).2
+    | .maj, [a, b], 0 => return .bit (carry a.toBit (← b.toPair))
+    | .gp, [a], 0 => return .pair (gp (← a.toPair))
+    | .ev, [a, b], 0 => return .bit (ev a.toBit (← b.toPair))
+    | .dot, [a, b], 0 => return .pair ((← a.toPair) ⊛ (← b.toPair))
+    | .xor, [a, b], 0 => let x ← a.toPair; return .bit ((x.1 ^^ x.2) ^^ b.toBit)
+    | _, _, _ => none
 
-/-- The first sum the circuit gets wrong, over every pair of `n`-bit operands and
-both carries in. -/
-def Circuit.wrongSum (k : Circuit) : Option (Nat × Nat × Bool) :=
+/-- What is wrong with a circuit, if anything: an output it cannot evaluate, or
+the first sum it gets wrong, over every pair of `n`-bit operands and both
+carries in. -/
+def Circuit.wrongSum (k : Circuit) : Option String :=
   (List.range (2 ^ (2 * n + 1))).findSome? fun m =>
     let (a, b, ci) := (m % 2 ^ n, m / 2 ^ n % 2 ^ n, m / 2 ^ (2 * n) == 1)
     let cv := if k.pairs then V.pair (ci, false) else .bit ci
-    let out := k.outs.map fun w => (w.eval cv ((bitsOf n a).zip (bitsOf n b))).toBit
-    if val out == a + b + ci.toNat then none else some (a, b, ci)
+    match k.outs.mapM fun w => w.eval cv ((bitsOf n a).zip (bitsOf n b)) with
+    | none => some "an output cannot be evaluated"
+    | some out =>
+      if val (out.map V.toBit) == a + b + ci.toNat then none
+      else some s!"the circuit gets {a} + {b} + {ci.toNat} wrong"
 
 /-- A wrong adder, for the check below: its sum cells read the carry out of
 their own column instead of the carry into it. -/
@@ -251,6 +263,10 @@ def offByOne : Circuit :=
     outs := adderOuts ((scanl (fun c x => Wire.cell .maj [c, x] 0) cin cols).drop 1 ++ [cin]) }
 
 #guard offByOne.wrongSum.isSome
+
+-- A cell with a missing input is caught too.
+#guard ({ offByOne with outs := [.cell .maj [cin] 0] } : Circuit).wrongSum ==
+  some "an output cannot be evaluated"
 
 /-! ## Drawing a circuit -/
 
@@ -305,6 +321,21 @@ def Circuit.placed (k : Circuit) : List Placed × Nat × Nat :=
   (cells.map fun (kd, a) =>
     { kind := kd, args := a, col := (w kd a).col,
       lvl := if kd == .xor then bottom + 1 else (w kd a).lvl }, lo, hi)
+
+/-- The depth of a circuit's carry chain, in levels. -/
+def Circuit.depth (k : Circuit) : Nat :=
+  let (_, lo, hi) := k.placed
+  hi + 1 - lo
+
+-- The numbers the README quotes: a 7-level chain, until Sklansky's network of
+-- twelve `⊛` cells takes 3 levels. On the four inputs of the law diagram, the
+-- scan's last result waits 3 levels and Sklansky's 2.
+#guard ["adder_circuit_ripple", "adder_circuit_carry_chain", "adder_circuit_gp",
+  "adder_circuit_scan"].all fun f => (circuit f).depth == 7
+#guard (circuit "adder_circuit_sklansky").depth == 3
+#guard ((circuit "adder_circuit_sklansky").placed.1.filter (·.kind == .dot)).length == 12
+#guard (scan1 later (List.replicate 4 0)).foldl max 0 == 3 &&
+  (prefixNet later (List.replicate 4 0)).foldl max 0 == 2
 
 /-- A wire drawn on the page, and the cells at its two ends, which it may touch. -/
 structure Route where
@@ -386,7 +417,7 @@ def Circuit.texts (k : Circuit) : List Txt :=
   let mid := (levelY lo + levelY hi) / 2
   tops ++ bottoms ++
     [⟨xb + 10, mid - 3, "carry chain", "start", .label⟩,
-     ⟨xb + 10, mid + 15, s!"{hi + 1 - lo} levels", "start", .label⟩]
+     ⟨xb + 10, mid + 15, s!"{k.depth} levels", "start", .label⟩]
 
 /-- The top of the legend, and its rows: for each line, the kind of cell drawn
 beside it, if any. -/
@@ -453,7 +484,7 @@ def Circuit.svg (k : Circuit) (th : Theme) : String := Id.run do
   let (W, H) := k.size
   let (top, rows) := k.legend
   let desc := s!"{k.name}: the circuit of the line {k.line}, for {n} columns. " ++
-    s!"Its carry chain is {hi + 1 - lo} levels deep."
+    s!"Its carry chain is {k.depth} levels deep."
   let mut out := s!"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{num W}\" height=\"{num H}\" viewBox=\"0 0 {num W} {num H}\" font-family=\"{sans}\" role=\"img\" aria-labelledby=\"title desc\">\n"
   out := out ++ s!"<title id=\"title\">{esc k.name}</title>\n<desc id=\"desc\">{esc desc}</desc>\n"
   out := out ++ s!"<rect width=\"100%\" height=\"100%\" fill=\"{th.surface}\"/>\n"
@@ -482,8 +513,7 @@ def Circuit.svg (k : Circuit) (th : Theme) : String := Id.run do
 
 /-- A circuit's drawing, if it adds and its layout has no fault. -/
 def Circuit.drawing (k : Circuit) : Drawing := do
-  if let some (a, b, ci) := k.wrongSum then
-    throw s!"{k.name}: the circuit gets {a} + {b} + {ci.toNat} wrong"
+  if let some e := k.wrongSum then throw s!"{k.name}: {e}"
   if let some f := k.fault then throw s!"{k.name}: {f}"
   return k.svg
 
