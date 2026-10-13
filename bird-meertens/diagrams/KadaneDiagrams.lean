@@ -239,6 +239,12 @@ structure Arc where
 /-- The point halfway along the arc, where it bends out furthest. -/
 def Arc.apex (a : Arc) : Float := 0.125 * a.x₀ + 0.75 * a.xE + 0.125 * a.x₃
 
+/-- The point a fraction `t` of the way along the arc. -/
+def Arc.at (a : Arc) (t : Float) : Float × Float :=
+  let u := 1 - t
+  (u * u * u * a.x₀ + 3 * u * t * a.xE + t * t * t * a.x₃,
+   a.y₀ + (a.y₃ - a.y₀) * t * t * (3 - 2 * t))
+
 /-- A laid-out diagram, before the title and the note. -/
 structure Pic where
   boxes : List Box
@@ -520,11 +526,16 @@ structure Rect where
 
 def Rect.meets (a b : Rect) : Bool := a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b
 
-/-- What a line of text covers, from its anchor and baseline. -/
+def Rect.contains (r : Rect) (x y : Float) : Bool := r.l < x && x < r.r && r.t < y && y < r.b
+
+/-- What a line of text covers, from its anchor and baseline, with 2 px to
+spare at each end. Widths are estimated as `cw` per character. A browser that
+draws `−`, `∘`, `⊙` or `⊗` from a fallback font may make a line a little wider
+or narrower. -/
 def textRect (x y : Float) (s : String) (anchor : String) : Rect :=
   let w := textW s
   let l := if anchor == "end" then x - w else if anchor == "start" then x else x - w / 2
-  ⟨l, y - 11, l + w, y + 3⟩
+  ⟨l - 2, y - 11, l + w + 2, y + 3⟩
 
 /-- Every piece of text in a diagram: the lines of its nodes, its labels and
 its `=` signs. -/
@@ -539,15 +550,44 @@ def Pic.texts (p : Pic) : List (String × Rect) :=
   p.arcs.map (fun a => label a.label a.labelAt) ++
   p.eqs.map fun (x, y) => ("=", textRect x y "=" "middle")
 
-/-- A fault in a layout: two texts that overlap, or a text off the page. -/
+/-- Points at most a few pixels apart along every arrow and arc. -/
+def Pic.linePoints (p : Pic) : List (Float × Float) :=
+  let along (f : Float → Float × Float) := (List.range 101).map fun i => f (i.toFloat / 100)
+  p.arrows.flatMap (fun a =>
+    let ((x₀, y₀), (x₁, y₁)) := a.ends
+    along fun t => (x₀ + (x₁ - x₀) * t, y₀ + (y₁ - y₀) * t)) ++
+  p.arcs.flatMap fun a => along a.at
+
+/-- A fault in a layout: a text off the page, two texts that overlap, or a
+line through a text. It checks text against the estimate in `textRect`, and
+lines at the points of `linePoints`. -/
 def Pic.fault (p : Pic) : Option String :=
   let ts := p.texts
+  let pts := p.linePoints
   let off := ts.find? fun (_, r) => r.l < 0 || r.r > p.w
   let clash := (List.range ts.length).findSome? fun i => (List.range i).findSome? fun j =>
     if ts[i]!.2.meets ts[j]!.2 then some s!"{ts[j]!.1} overlaps {ts[i]!.1}" else none
-  match off with
-  | some (s, _) => some s!"{s} is off the page"
-  | none => clash
+  let crossed := ts.find? fun (_, r) => pts.any fun (x, y) => r.contains x y
+  match off, clash, crossed with
+  | some (s, _), _, _ => some s!"{s} is off the page"
+  | none, some c, _ => some c
+  | none, none, some (s, _) => some s!"a line crosses {s}"
+  | none, none, none => none
+
+/-! The checks catch what they are meant to. -/
+
+/-- Nodes and arrows on a page 100 px wide. -/
+def testPic (boxes : List Box) (arrows : List Arrow := []) : Pic :=
+  { boxes, arrows, eqs := [], w := 100, h := 120 }
+
+#guard (testPic [⟨node (1 : Int), 50, 0⟩]).fault.isNone
+#guard (testPic [⟨node (1 : Int), 50, 0⟩, ⟨node (2 : Int), 54, 4⟩]).fault.isSome
+#guard (testPic [⟨node (12345 : Int), 0, 0⟩]).fault.isSome
+#guard
+  let (a, b, c) : Box × Box × Box := (⟨node (1 : Int), 50, 0⟩, ⟨node (2 : Int), 50, 100⟩, ⟨node (3 : Int), 50, 50⟩)
+  ((testPic [a, b, c] [⟨a, b, 50, 50, "f", false⟩]).fault.map (·.startsWith "a line crosses")).getD false
+#guard result [("f", node (2 : Int))] != result [("g", node2 "e" (6 : Int))]
+#guard result [("f", node (2 : Int))] == result [("g", node2 "e" (2 : Int))]
 
 /-- The plain text of a node, for the description. -/
 def plain (n : Node) : String := " ".intercalate (n.map lineText)
@@ -601,6 +641,9 @@ def svg (th : Theme) (l : Law) (p : Pic) : String := Id.run do
 
 def main : IO UInt32 := do
   let dir := "bird-meertens/diagrams"
+  unless ← System.FilePath.pathExists "bird-meertens/README.md" do
+    IO.eprintln "Run kadane_diagrams from the root of the repository."
+    return 1
   IO.FS.createDirAll dir
   for l in laws do
     let (u, v) := (result l.before, result l.after)

@@ -27,12 +27,15 @@ jobs:
         run: |
           lake exe kadane_diagrams
           git add --intent-to-add -- bird-meertens/diagrams
-          git diff --exit-code -- bird-meertens/diagrams
+          git diff --exit-code -- bird-meertens/diagrams || {
+            echo "::error::The Kadane diagrams are stale. Run 'lake exe kadane_diagrams' and commit the result."
+            exit 1
+          }
           # The README shows every diagram, and every diagram it shows exists.
           for f in bird-meertens/diagrams/*.svg; do
             grep -q "diagrams/$(basename "$f")" bird-meertens/README.md || { echo "not in the README: $f"; exit 1; }
           done
-          for f in $(grep -o 'diagrams/[a-z_]*\.svg' bird-meertens/README.md | sort -u); do
+          for f in $(grep -o 'diagrams/[A-Za-z0-9_-]*\.svg' bird-meertens/README.md | sort -u); do
             test -f "bird-meertens/$f" || { echo "missing: bird-meertens/$f"; exit 1; }
           done
 
