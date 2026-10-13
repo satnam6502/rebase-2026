@@ -492,7 +492,7 @@ The step to a parallel prefix network has an algebra of its own:
   Journal of Universal Computer Science 11(7), 2005.
 - C. Elliott,
   [Generic functional parallel algorithms: scan and FFT](https://doi.org/10.1145/3110251),
-  ICFP 2017 ([free copy](http://conal.net/papers/generic-parallel-functional/generic-parallel-functional.pdf)).
+  ICFP 2017 ([free copy](https://conal.net/papers/generic-parallel-functional/generic-parallel-functional.pdf)).
   Scan algorithms follow from a few functor combinators, with no arrays and no
   indexing.
 
@@ -542,7 +542,7 @@ Three informal explanations:
   The carries come from composing one-bit carry functions with a prefix
   network.
 - K. Shirriff,
-  [Reverse-engineering a carry-lookahead adder in the Pentium](http://www.righto.com/2025/01/pentium-carry-lookahead-reverse-engineered.html),
+  [Reverse-engineering a carry-lookahead adder in the Pentium](https://www.righto.com/2025/01/pentium-carry-lookahead-reverse-engineered.html),
   2025. The carry merge is associative, so sub-ranges can be merged in any
   order.
 
