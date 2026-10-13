@@ -47,3 +47,5 @@ srcDir = "bird-meertens/netlist"
 name = "kadane_diagrams"
 root = "KadaneDiagrams"
 srcDir = "bird-meertens/diagrams"
+# No fused multiply-adds, so the SVGs are the same on every machine.
+moreLeancArgs = ["-ffp-contract=off"]
