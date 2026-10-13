@@ -459,6 +459,95 @@ from 7 levels to 3.
 - A second calculation turns the textbook row of full adders into Sklansky's adder.
 - One Lean function yields a proof, a depth analysis and a netlist. That is Lava's idea, checked.
 
+### Related work
+
+The closest work is O'Donnell and Rünger's functional pearl. It too turns a
+ripple-carry adder into a carry-lookahead adder by calculation, in Haskell, as
+a semi-formal correctness proof, and it draws the circuit at its main stages.
+It meets the same obstacle: the ripple adder's carry scan uses a function that
+is not associative. It finds associativity another way. It partially evaluates
+each column's carry function, composes those functions with `∘`, and then
+represents them as the symbols `K`, `P` and `G`, for kill, propagate and
+generate. A tree-shaped parallel scan finishes the job. The derivation here
+introduces the `(g, p)` pairs directly, by scan fusion, and ends at Sklansky's
+network. It also starts from Lava's row of full adders, and Lean checks every
+step.
+
+- J. T. O'Donnell and G. Rünger,
+  [Functional pearl: Derivation of a logarithmic time carry lookahead addition circuit](https://doi.org/10.1017/S0956796804005180),
+  Journal of Functional Programming 14(6), 2004. An earlier version is in the
+  [2001 Haskell Workshop proceedings](https://www.haskell.org/haskell-symposium/2001/2001-62.pdf).
+
+The step to a parallel prefix network has an algebra of its own:
+
+- R. Hinze, [An algebra of scans](https://www.cs.ox.ac.uk/ralf.hinze/publications/MPC04.pdf),
+  Mathematics of Program Construction 2004, LNCS 3125. Two building blocks and
+  four combinators describe the standard prefix circuits. The algebra's laws
+  prove circuits correct and derive new ones, such as Brent–Kung and
+  Ladner–Fischer.
+- M. Sheeran,
+  [Functional and dynamic programming in the design of parallel prefix networks](https://www.cambridge.org/core/journals/journal-of-functional-programming/article/functional-and-dynamic-programming-in-the-design-of-parallel-prefix-networks/BF6065585BE32438CDF081A44741A5B8),
+  Journal of Functional Programming 21(1), 2011. Networks modelled in Haskell,
+  with search, come out smaller than Ladner–Fischer's at the same depth.
+- M. Sheeran,
+  [Hardware design and functional programming: a perfect match](https://www.jucs.org/jucs_11_7/hardware_design_and_functional/jucs_11_7_1135_1158_sheeran.html),
+  Journal of Universal Computer Science 11(7), 2005.
+- C. Elliott,
+  [Generic functional parallel algorithms: scan and FFT](https://doi.org/10.1145/3110251),
+  ICFP 2017 ([free copy](https://conal.net/papers/generic-parallel-functional/generic-parallel-functional.pdf)).
+  Scan algorithms follow from a few functor combinators, with no arrays and no
+  indexing.
+
+Circuits have been derived by refinement before, in Ruby, the relational
+language that this repository's DSL is named after, and described as
+functions in Lava:
+
+- G. Jones and M. Sheeran,
+  [Designing arithmetic circuits by refinement in Ruby](https://link.springer.com/chapter/10.1007/3-540-56625-2_15),
+  Mathematics of Program Construction 1992, LNCS 669. A well-known arithmetic
+  circuit follows from decisions made about the abstract algorithm, so it is
+  correct by construction.
+- G. Jones and M. Sheeran, Circuit design in Ruby, in J. Staunstrup (ed.),
+  Formal Methods for VLSI Design, North-Holland, 1990.
+- P. Bjesse, K. Claessen, M. Sheeran and S. Singh,
+  [Lava: hardware design in Haskell](https://doi.org/10.1145/289423.289440),
+  ICFP 1998. One circuit description, many interpretations: simulation,
+  verification and netlists, as `prefixNet` has here.
+
+The carry operator `⊛`, and carries as a scan:
+
+- R. P. Brent and H. T. Kung,
+  [A regular layout for parallel adders](https://doi.org/10.1109/TC.1982.1675982),
+  IEEE Transactions on Computers C-31(3), 1982
+  ([free copy](https://maths-people.anu.edu.au/~brent/pd/rpb060.pdf)). It
+  defines the associative operator on `(g, p)` pairs.
+- G. E. Blelloch, [Prefix sums and their applications](https://www.cs.cmu.edu/~scandal/papers/CMU-CS-90-190.html),
+  CMU-CS-90-190, 1990. Adding numbers is one of its applications of scan.
+
+Machine-checked proofs of prefix adders, which verify them rather than derive
+them:
+
+- F. Liu, Q. Tan and G. Chen,
+  [Formal proof of prefix adders](https://www.sciencedirect.com/science/article/pii/S0895717710000609),
+  Mathematical and Computer Modelling 52(1–2), 2010. Bit pairs with the carry
+  operator form a monoid, and that proves the Kogge–Stone adder correct.
+- Wang et al.,
+  [Functional verification of high performance adders in Coq](https://doi.org/10.1155/2014/197252),
+  Journal of Applied Mathematics, 2014. Carry-lookahead, Ling and parallel
+  prefix adders, verified in Coq for every width.
+
+Three informal explanations:
+
+- Wikipedia's [Brent–Kung adder](https://en.wikipedia.org/wiki/Brent%E2%80%93Kung_adder)
+  sketches the step from ripple carry to the operator on `(g, p)` pairs.
+- A. Feldmann, [Carry lookahead adders](https://feldmann.nyc/blog/carry-lookahead-adder).
+  The carries come from composing one-bit carry functions with a prefix
+  network.
+- K. Shirriff,
+  [Reverse-engineering a carry-lookahead adder in the Pentium](https://www.righto.com/2025/01/pentium-carry-lookahead-reverse-engineered.html),
+  2025. The carry merge is associative, so sub-ranges can be merged in any
+  order.
+
 ## Four sorter cores, related
 
 Claessen, Sheeran and Singh, *The Design and Verification of a Sorter Core*
