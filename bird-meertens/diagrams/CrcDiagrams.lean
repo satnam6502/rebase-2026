@@ -416,8 +416,10 @@ def specSch : Sch :=
 
 /-- The Galois LFSR with the given taps, as found in `lfsrStep`: `k` register
 bits in a row, an XOR before each tapped bit, and the feedback `r_top ⊕ b`
-returning along the bottom. Under each bit is the coefficient it holds. -/
-def lfsrSch (file name line : String) {k : Nat} (taps : BitVec k) (legend : List String) : Sch := Id.run do
+returning along the bottom. Under each bit is the coefficient it holds. The
+register needs at least one bit, which the caller proves. -/
+def lfsrSch (file name line : String) {k : Nat} (taps : BitVec k) (legend : List String)
+    (_ : 0 < k := by decide) : Sch := Id.run do
   let dx : Float := 92
   let x₀ := M + 50
   let yf := rowY + 30
