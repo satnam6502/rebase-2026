@@ -31,12 +31,16 @@ jobs:
             echo "::error::The Kadane diagrams are stale. Run 'lake exe kadane_diagrams' and commit the result."
             exit 1
           }
-          # The README shows every diagram, and every diagram it shows exists.
+          # The README shows every diagram in a <picture>, light and dark, and
+          # every diagram it shows exists.
           for f in bird-meertens/diagrams/*.svg; do
-            grep -q "diagrams/$(basename "$f")" bird-meertens/README.md || { echo "not in the README: $f"; exit 1; }
+            n=$(basename "$f" .svg); n=${n%_light}; n=${n%_dark}
+            grep -qF "src=\"diagrams/${n}_light.svg\"" bird-meertens/README.md &&
+              grep -qF "srcset=\"diagrams/${n}_dark.svg\"" bird-meertens/README.md ||
+              { echo "::error::bird-meertens/README.md does not show $n in light and dark"; exit 1; }
           done
-          for f in $(grep -o 'diagrams/[A-Za-z0-9_-]*\.svg' bird-meertens/README.md | sort -u); do
-            test -f "bird-meertens/$f" || { echo "missing: bird-meertens/$f"; exit 1; }
+          for f in $(grep -oE '(src|srcset)="diagrams/[A-Za-z0-9_-]*\.svg"' bird-meertens/README.md | grep -oE 'diagrams/[A-Za-z0-9_-]*\.svg' | sort -u); do
+            test -f "bird-meertens/$f" || { echo "::error::bird-meertens/README.md shows a missing bird-meertens/$f"; exit 1; }
           done
 
       - name: Generate SystemVerilog

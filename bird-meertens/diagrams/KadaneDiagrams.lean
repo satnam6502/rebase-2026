@@ -78,15 +78,25 @@ def node {α : Type} [Draw α] (x : α) : Node := [Draw.spans x]
 def node2 {α β : Type} [Draw α] [Draw β] (e : α) (v : β) : Node :=
   [Draw.spans e, ("= ", .label) :: Draw.spans v]
 
-/-- `e` as the left operand of an operator: bracketed unless it is atomic. -/
-def operand (e : String) : String :=
-  if e.contains '⊙' || e.contains '⊗' then s!"({e})" else e
+/-- A left fold or scan, written out: a seed, then an operator on each element
+in turn. A diagram prints a term and evaluates it, so the value it shows is the
+value of the term it shows. -/
+inductive Term (α : Type) where
+  | seed (a : α)
+  | step (t : Term α) (x : Int)
+  deriving BEq
 
-/-- `⊙` on text, so that folds and scans write out what they compute. -/
-def odotText (e : String) (x : Int) : String := s!"{operand e} ⊙ {int x}"
+/-- The term as text, with `op` for the operator. -/
+def Term.text {α : Type} [Draw α] (op : String) : Term α → String
+  | .seed a => lineText (Draw.spans a)
+  | .step t x =>
+    let s := t.text op
+    s!"{match t with | .seed _ => s | .step .. => s!"({s})"} {op} {int x}"
 
-/-- `⊗` on text. -/
-def otimesText (e : String) (x : Int) : String := s!"{operand e} ⊗ {int x}"
+/-- The term's value, with `f` for the operator. -/
+def Term.eval {α : Type} (f : α → Int → α) : Term α → α
+  | .seed a => a
+  | .step t x => f (t.eval f) x
 
 /-! ## The laws -/
 
@@ -128,6 +138,10 @@ def laws : List Law :=
   let t := map tails pre
   let s := map (map sum) t
   let w := ["a ⊙ b = max (a + b) 0"]
+  let fold := foldl .step (Term.seed (0 : Int)) xs
+  let folds := map (foldl .step (Term.seed (0 : Int))) pre
+  let scan := scanl .step (Term.seed (0 : Int)) xs
+  let pairs := foldl .step (Term.seed ((0, 0) : Int × Int)) xs
   [ { file := "segs", name := "Definition of segs",
       statement := "segs = concat ∘ map tails ∘ inits",
       start := node xs,
@@ -156,23 +170,26 @@ def laws : List Law :=
       start := node xs,
       before := [("tails", node (tails xs)), ("map sum", node (map sum (tails xs))),
         ("maxL", node (maxL (map sum (tails xs))))],
-      after := [("foldl (⊙) 0", node2 (foldl odotText "0" xs) (foldl (· ⊙ ·) 0 xs))],
+      after := [("foldl (⊙) 0", node2 (fold.text "⊙") (fold.eval odot))],
       note := w },
     { file := "scan_lemma", name := "Scan lemma",
       statement := "map (foldl f e) ∘ inits = scanl f e",
       start := node xs,
       before := [("inits", node pre),
-        ("map (foldl (⊙) 0)", node2 (map (foldl odotText "0") pre) (map (foldl (· ⊙ ·) 0) pre))],
-      after := [("scanl (⊙) 0", node2 (scanl odotText "0" xs) (scanl (· ⊙ ·) 0 xs))],
+        ("map (foldl (⊙) 0)", node2 (folds.map (·.text "⊙")) (folds.map (·.eval odot)))],
+      after := [("scanl (⊙) 0", node2 (scan.map (·.text "⊙")) (scan.map (·.eval odot)))],
       note := w },
     { file := "fold_scan_fusion", name := "Fold–scan fusion",
       statement := "maxL ∘ scanl (⊙) 0 = fst ∘ foldl (⊗) (0, 0)",
       start := node xs,
       before := [("scanl (⊙) 0", node (scanl (· ⊙ ·) 0 xs)),
         ("maxL", node (maxL (scanl (· ⊙ ·) 0 xs)))],
-      after := [("foldl (⊗) (0, 0)", node2 (foldl otimesText "(0, 0)" xs) (foldl (· ⊗ ·) (0, 0) xs)),
-        ("fst", node (foldl (· ⊗ ·) (0, 0) xs).1)],
+      after := [("foldl (⊗) (0, 0)", node2 (pairs.text "⊗") (pairs.eval otimes)),
+        ("fst", node (pairs.eval otimes).1)],
       note := w ++ ["(u, v) ⊗ x = (max u w, w), with w = v ⊙ x"] } ]
+
+-- Both paths of the scan lemma build the same terms, before any `⊙` is evaluated.
+#guard map (foldl .step (Term.seed (0 : Int))) (inits xs) == scanl .step (Term.seed 0) xs
 
 /-! ## Layout -/
 
@@ -462,10 +479,11 @@ def merge (l : List Span) : List Span :=
 def mono := "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace"
 def sans := "system-ui, -apple-system, 'Segoe UI', sans-serif"
 
-/-- One line of coloured text, anchored at `(x, y)`. -/
+/-- One line of coloured text, anchored at `(x, y)`. `textLength` holds it to
+the width that the layout and its checks assume, whatever font draws it. -/
 def textLine (th : Theme) (x y : Float) (l : List Span) (anchor := "middle") : String :=
   let body := String.join ((merge l).map fun (s, i) => s!"<tspan fill=\"{th.ink' i}\">{esc s}</tspan>")
-  s!"<text x=\"{num x}\" y=\"{num y}\" text-anchor=\"{anchor}\" xml:space=\"preserve\">{body}</text>\n"
+  s!"<text x=\"{num x}\" y=\"{num y}\" text-anchor=\"{anchor}\" textLength=\"{num (textW (lineText l))}\" lengthAdjust=\"spacing\" xml:space=\"preserve\">{body}</text>\n"
 
 def drawBox (th : Theme) (b : Box) : String := Id.run do
   let mut out := ""
@@ -558,16 +576,20 @@ def Pic.linePoints (p : Pic) : List (Float × Float) :=
     along fun t => (x₀ + (x₁ - x₀) * t, y₀ + (y₁ - y₀) * t)) ++
   p.arcs.flatMap fun a => along a.at
 
-/-- A fault in a layout: a text off the page, two texts that overlap, or a
-line through a text. It checks text against the estimate in `textRect`, and
+/-- A fault in a layout: a coordinate that is not finite, a text off the page,
+two texts that overlap, or a line through a text. It checks text against the estimate in `textRect`, and
 lines at the points of `linePoints`. -/
 def Pic.fault (p : Pic) : Option String :=
   let ts := p.texts
   let pts := p.linePoints
+  let corners := pts ++ p.boxes.map (fun (b : Box) => (b.cx, b.y)) ++
+    ts.map (fun ((_, r) : String × Rect) => (r.l, r.t))
+  let finite := corners.all fun (x, y) => x.isFinite && y.isFinite
   let off := ts.find? fun (_, r) => r.l < 0 || r.r > p.w
   let clash := (List.range ts.length).findSome? fun i => (List.range i).findSome? fun j =>
     if ts[i]!.2.meets ts[j]!.2 then some s!"{ts[j]!.1} overlaps {ts[i]!.1}" else none
   let crossed := ts.find? fun (_, r) => pts.any fun (x, y) => r.contains x y
+  if !finite then some "a coordinate is not finite" else
   match off, clash, crossed with
   | some (s, _), _, _ => some s!"{s} is off the page"
   | none, some c, _ => some c
@@ -583,6 +605,10 @@ def testPic (boxes : List Box) (arrows : List Arrow := []) : Pic :=
 #guard (testPic [⟨node (1 : Int), 50, 0⟩]).fault.isNone
 #guard (testPic [⟨node (1 : Int), 50, 0⟩, ⟨node (2 : Int), 54, 4⟩]).fault.isSome
 #guard (testPic [⟨node (12345 : Int), 0, 0⟩]).fault.isSome
+#guard
+  -- An arrow of length 0 has no direction.
+  let (a, b) : Box × Box := (⟨node (1 : Int), 50, 0⟩, ⟨node (2 : Int), 50, 24⟩)
+  (testPic [a, b] [⟨a, b, 50, 50, "f", false⟩]).fault == some "a coordinate is not finite"
 #guard
   let (a, b, c) : Box × Box × Box := (⟨node (1 : Int), 50, 0⟩, ⟨node (2 : Int), 50, 100⟩, ⟨node (3 : Int), 50, 50⟩)
   ((testPic [a, b, c] [⟨a, b, 50, 50, "f", false⟩]).fault.map (·.startsWith "a line crosses")).getD false
@@ -644,7 +670,8 @@ def main : IO UInt32 := do
   unless ← System.FilePath.pathExists "bird-meertens/README.md" do
     IO.eprintln "Run kadane_diagrams from the root of the repository."
     return 1
-  IO.FS.createDirAll dir
+  -- Check every diagram before writing any.
+  let mut done := #[]
   for l in laws do
     let (u, v) := (result l.before, result l.after)
     if u != v then
@@ -656,6 +683,9 @@ def main : IO UInt32 := do
     if let some f := p.fault then
       IO.eprintln s!"{l.name}: {f}"
       return 1
+    done := done.push (l, p)
+  IO.FS.createDirAll dir
+  for (l, p) in done do
     IO.FS.writeFile s!"{dir}/{l.file}_light.svg" (svg light l p)
     IO.FS.writeFile s!"{dir}/{l.file}_dark.svg" (svg dark l p)
     IO.println s!"{dir}/{l.file}_{"{light,dark}"}.svg"
