@@ -538,7 +538,9 @@ def Pic.shiftX (p : Pic) (dx : Float) : Pic :=
     w := p.w + dx }
 
 /-- Keep every text at least 8 px inside the page: move the diagram right if a
-label reaches past the left edge, and widen the page if one reaches past the right. -/
+label reaches past the left edge, and widen the page if one reaches past the right.
+It repairs texts only. A box or an arrow past the edge is left for `Pic.fault`
+to report. -/
 def Pic.fit (p : Pic) : Pic :=
   let rs := p.texts.map (·.2)
   let lo := rs.foldl (fun m r => min m r.l) p.w

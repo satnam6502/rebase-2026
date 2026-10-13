@@ -261,6 +261,10 @@ def laws : List Law :=
         s!"tableStep t r x = (r <<< 8) ⊕ t ({topByte} ⊕ x)",
         "table poly i = byteStep poly 0 i, the CRC of the single byte i"] } ]
 
+-- Shift fusion ends at two results written differently, side by side, which
+-- is the case `chain` leaves room for: it lays out without a fault.
+#guard (laws.find? (·.file == "crc_shift_fusion")).any fun l => (layout l).any (·.fault.isNone)
+
 /-! ## Finding the LFSR in `lfsrStep`
 
 `lfsrStep poly` is linear in the register and the message bit together. So its
