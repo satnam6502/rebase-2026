@@ -159,6 +159,13 @@ def msg : List Bool := [true, false, true, true]
 def poly16 : BitVec 16 := 0x1021#16
 def bytes : List (BitVec 8) := [0x31#8, 0x32#8]
 
+-- The model agrees on the byte-level examples too, through the table: on the
+-- two bytes drawn here, and on the catalogue's check string "123456789", whose
+-- CRC-16/XMODEM is 0x31C3.
+#guard Poly.ofReg (foldl (tableStep (table poly16)) 0 bytes) == crc poly16 (flatten (bytes.map bitsOf))
+#guard foldl (tableStep (table poly16)) 0 BirdMeertens.CRC.check == 0x31C3#16 &&
+  Poly.ofReg 0x31C3#16 == crc poly16 (flatten (BirdMeertens.CRC.check.map bitsOf))
+
 def laws : List Law :=
   let g := Poly.gen poly8
   let t := msg.foldl Term.step Term.seed
