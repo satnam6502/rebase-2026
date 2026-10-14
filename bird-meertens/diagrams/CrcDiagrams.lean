@@ -51,7 +51,8 @@ def shift (p : Poly) (n : Nat) : Poly := ⟨p.mask <<< n⟩
 def bit (b : Bool) : Poly := ⟨if b then 1 else 0⟩
 
 /-- The remainder of `p` divided by `g`, by long division. Each round lowers the
-degree, so `p`'s degree plus one rounds are enough. -/
+degree, so `p`'s degree plus one rounds are enough. `g` must not be zero; every
+generator `Xᵏ + poly` is nonzero, and a `#guard` checks the two used here. -/
 def mod (p g : Poly) : Poly := Id.run do
   let dg := g.mask.log2
   let mut r := p.mask
@@ -131,6 +132,9 @@ def X8 : String := Poly.xPow k8
 
 /-- The top byte of a `k16`-bit register: `r₁₅…₈`. -/
 def topByte : String := s!"r{sub (k16 - 1)}…{sub (k16 - 8)}"
+
+-- Both generators are nonzero, as `Poly.mod` needs.
+#guard (Poly.gen poly8).mask != 0 && (Poly.gen poly16).mask != 0
 
 -- The names CRC-8/SMBUS and CRC-16/XMODEM are pinned by the catalogue's check
 -- values on "123456789": 0xF4 and 0x31C3.
@@ -299,10 +303,12 @@ def galoisTaps {k : Nat} (step : BitVec k → Bool → BitVec k) : Option (BitVe
   if step 0 false == 0 && shifts && step (unit k (k - 1)) false == taps then some taps else none
 
 #guard linear (lfsrStep poly8) && galoisTaps (lfsrStep poly8) == some poly8
--- The width-16 step has the same shape. Its linearity is checked on a sample,
--- every register with one or two bits set with each message bit, because an
--- exhaustive check of 2¹⁷ inputs would slow every build. `crcBytes_eq_table`
--- is proved in `CRC.lean` regardless.
+-- The width-16 step has the same shape. Its linearity is checked only on a
+-- sample, every register with one or two bits set with each message bit,
+-- because an exhaustive check of 2¹⁷ inputs would slow every build. No
+-- schematic is read off the width-16 taps: only the 8-bit LFSR is, and its
+-- linearity is checked exhaustively above. The width-16 diagrams rest on
+-- `crcBytes_eq_table`, proved in `CRC.lean`, not on this guard.
 #guard galoisTaps (lfsrStep poly16) == some poly16 &&
   ((List.range k16).flatMap fun i => (List.range k16).map fun j => unit k16 i ^^^ unit k16 j).all fun r =>
     [false, true].all fun b =>
