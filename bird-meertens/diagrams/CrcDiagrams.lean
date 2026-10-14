@@ -194,6 +194,12 @@ def Term.eval {α : Type} (e : α) (f : α → Bool → α) : Term → α
 #guard foldl (tableStep (table poly16)) 0 BirdMeertens.CRC.check == 0x31C3#16 &&
   Poly.ofReg 0x31C3#16 == crc poly16 (flatten (BirdMeertens.CRC.check.map bitsOf))
 
+-- Sarwate's step agrees with eight clocks on every byte, at the register the
+-- table diagram starts from.
+#guard (List.range 256).all fun i =>
+  let r := byteStep poly16 0 (bytes.headD 0)
+  byteStep poly16 r (BitVec.ofNat 8 i) == tableStep (table poly16) r (BitVec.ofNat 8 i)
+
 def laws : List Law :=
   let g := Poly.gen poly8
   let t := msg.foldl Term.step Term.seed
@@ -293,8 +299,10 @@ def galoisTaps {k : Nat} (step : BitVec k → Bool → BitVec k) : Option (BitVe
   if step 0 false == 0 && shifts && step (unit k (k - 1)) false == taps then some taps else none
 
 #guard linear (lfsrStep poly8) && galoisTaps (lfsrStep poly8) == some poly8
--- The width-16 step has the same shape. Its linearity is checked on a sample:
--- every register with one or two bits set, with each message bit.
+-- The width-16 step has the same shape. Its linearity is checked on a sample,
+-- every register with one or two bits set with each message bit, because an
+-- exhaustive check of 2¹⁷ inputs would slow every build. `crcBytes_eq_table`
+-- is proved in `CRC.lean` regardless.
 #guard galoisTaps (lfsrStep poly16) == some poly16 &&
   ((List.range k16).flatMap fun i => (List.range k16).map fun j => unit k16 i ^^^ unit k16 j).all fun r =>
     [false, true].all fun b =>
@@ -599,8 +607,12 @@ def Sch.fault (s : Sch) : Option String :=
     let inBlk := s.blks.find? fun b =>
       !(w.ends.contains b.id) && let (hw, hh) := b.half
         w.points.any fun (x, y) => (x - b.x).abs < hw + 2 && (y - b.y).abs < hh + 2
-    let own := w.label.map (·.1)
-    let inText := ts.find? fun (l, rc) => some l != own && w.points.any fun (x, y) => rc.contains x y
+    -- A wire may touch its own label: that rectangle, not any text that reads the same.
+    let own := w.label.map fun (l, x, y) => textRect x y l "middle"
+    let isOwn (rc : Rect) : Bool := match own with
+      | some o => o.l == rc.l && o.t == rc.t && o.r == rc.r && o.b == rc.b
+      | none => false
+    let inText := ts.find? fun (_, rc) => !isOwn rc && w.points.any fun (x, y) => rc.contains x y
     match inBlk, inText with
     | some b, _ => some s!"a wire crosses the block {b.id}"
     | none, some (l, _) => some s!"a wire crosses {l}"
@@ -620,6 +632,9 @@ def testSch (wires : List Wire) (texts : List (Float × Float × String) := []) 
 #guard (testSch [{ pts := [(20, 150), (100, 150)] }]).fault.isNone
 #guard (testSch [{ pts := [(20, 150), (280, 150)] }]).fault == some "a wire crosses the block a"
 #guard (testSch [] [(150, 166, "label")]).fault == some "label overlaps the block a"
+-- A wire may touch its own label, but not another text that reads the same.
+#guard (testSch [{ pts := [(20, 250), (280, 250)], label := some ("dup", 60, 241) }]
+  [(200, 248, "dup")]).fault == some "a wire crosses dup"
 #guard (testSch [] [(4, 200, "a long label")]).fault == some "a long label is off the page"
 #guard (testSch [{ pts := [(20, 150), (60, 150), (60, 150)] }]).fault == some "a wire has a segment of length 0"
 
