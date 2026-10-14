@@ -240,7 +240,9 @@ def chain (s : Node) (steps : List (String × Node)) (b : String) (tr : Node)
   let wv := vlabels.foldl (fun m a => max m (textW a)) 0
   let xl := M + max (wc / 2) (wv + 12)
   let wEnd := if shared then nodeW tr else 0
-  let xr := max (xl + wc / 2 + 40) (max (xl + 160) (M + max (nodeW s) wEnd / 2))
+  -- Results side by side need room for both, and the `=` between them.
+  let apart := if shared then 0 else xl + nodeW tl / 2 + 48 + nodeW tr / 2
+  let xr := max (max (xl + wc / 2 + 40) apart) (max (xl + 160) (M + max (nodeW s) wEnd / 2))
   let W := max minW (max (xr + max (nodeW s) (nodeW tr) / 2 + M) (xr + 12 + textW b + M))
   let S0 : Box := ⟨s, xr, 0⟩
   let L0 : Box := ⟨col.head!, xl, 0⟩
@@ -524,6 +526,28 @@ def Pic.fault (p : Pic) : Option String :=
   | none, none, some (s, _) => some s!"a line crosses {s}"
   | none, none, none => none
 
+/-- Move a diagram `dx` to the right, on a page `dx` wider. -/
+def Pic.shiftX (p : Pic) (dx : Float) : Pic :=
+  let f (b : Box) : Box := { b with cx := b.cx + dx }
+  { p with
+    boxes := p.boxes.map f
+    arrows := p.arrows.map fun a =>
+      { a with src := f a.src, dst := f a.dst, x₀ := a.x₀ + dx, x₁ := a.x₁ + dx }
+    arcs := p.arcs.map fun a => { a with x₀ := a.x₀ + dx, xE := a.xE + dx, x₃ := a.x₃ + dx }
+    eqs := p.eqs.map fun (x, y) => (x + dx, y)
+    w := p.w + dx }
+
+/-- Keep every text at least 8 px inside the page: move the diagram right if a
+label reaches past the left edge, and widen the page if one reaches past the right.
+It repairs texts only. A box or an arrow past the edge is left for `Pic.fault`
+to report. -/
+def Pic.fit (p : Pic) : Pic :=
+  let rs := p.texts.map (·.2)
+  let lo := rs.foldl (fun m r => min m r.l) p.w
+  let p := if lo < 8 then p.shiftX (8 - lo) else p
+  let hi := p.texts.foldl (fun m (_, r) => max m r.r) 0
+  if hi + 8 > p.w then { p with w := hi + 8 } else p
+
 /-! The checks catch what they are meant to. -/
 
 /-- Nodes and arrows on a page 100 px wide, with rows from `top0` to 300. -/
@@ -545,6 +569,10 @@ def numAt (n : Int) (x y : Float) : Box := ⟨node n, x, y⟩
 #guard
   let (a, b, c) := (numAt 1 50 top0, numAt 2 50 (top0 + 100), numAt 3 50 (top0 + 50))
   ((testPic [a, b, c] [⟨a, b, 50, 50, "f", false⟩]).fault.map (·.startsWith "a line crosses")).getD false
+-- `fit` repairs a label past either edge: it moves the diagram right, or widens the page.
+#guard (testPic [numAt 12345 0 top0]).fit.fault.isNone
+#guard (testPic [numAt 12345 100 top0]).fit.fault.isNone
+#guard (testPic [numAt 12345 0 top0]).fit.texts.all (·.2.l ≥ 8)
 #guard result [("f", node (2 : Int))] != result [("g", node2 "e" (6 : Int))]
 #guard result [("f", node (2 : Int))] == result [("g", node2 "e" (2 : Int))]
 
@@ -561,12 +589,13 @@ clear its column. -/
 def layout (l : Law) : Option Pic :=
   let minW := 2 * M + max (l.name.length.toFloat * 9.5) (textW l.statement)
   let side s steps b t := if l.arc then column s steps b t minW else some (chain s steps b t minW)
-  match l.before, l.after with
-  | [(a, x)], [(b, y)] => some (fork l.start a x b y minW)
-  | [(a₁, x), (a₂, t)], [(b₁, y), (b₂, _)] => some (diamond l.start a₁ x a₂ b₁ y b₂ t minW)
-  | steps@(_ :: _ :: _), [(b, t)] => side l.start steps b t
-  | [(b, t)], steps@(_ :: _ :: _) => (side l.start steps b t).map Pic.mirror
-  | _, _ => none
+  let pic := match l.before, l.after with
+    | [(a, x)], [(b, y)] => some (fork l.start a x b y minW)
+    | [(a₁, x), (a₂, t)], [(b₁, y), (b₂, _)] => some (diamond l.start a₁ x a₂ b₁ y b₂ t minW)
+    | steps@(_ :: _ :: _), [(b, t)] => side l.start steps b t
+    | [(b, t)], steps@(_ :: _ :: _) => (side l.start steps b t).map Pic.mirror
+    | _, _ => none
+  pic.map Pic.fit
 
 def svg (th : Theme) (l : Law) (p : Pic) : String := Id.run do
   let noteW := l.note.foldl (fun m s => max m (textW ("where " ++ s))) 0

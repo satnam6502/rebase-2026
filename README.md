@@ -382,8 +382,10 @@ efficient program. Every step in between is a proved law, cited in a `calc`
 block. Its [README](bird-meertens/README.md) gives each derivation in full,
 with running times, netlist sizes and the axioms each theorem uses. It also
 draws the steps: [a diagram of each Kadane law](bird-meertens/README.md#each-step-on-an-example),
-and [a law diagram and a schematic for each step from a ripple-carry to a
-carry-lookahead adder](bird-meertens/README.md#each-step-of-the-refinement-as-a-law-and-a-circuit).
+[a law diagram and a schematic for each step of the CRC
+derivation](bird-meertens/README.md#each-step-as-a-law-and-a-circuit), and the
+same for [each step from a ripple-carry to a carry-lookahead
+adder](bird-meertens/README.md#each-step-of-the-refinement-as-a-law-and-a-circuit).
 
 | file | specification | result |
 |---|---|---|
@@ -396,7 +398,7 @@ carry-lookahead adder](bird-meertens/README.md#each-step-of-the-refinement-as-a-
 [Ruby/Sorting](Ruby/Sorting) proves the same wiring laws over `Fin` vectors,
 and proves the sorters correct at every degree.
 
-The `BirdMeertens` library and four executables are targets of the root
+The `BirdMeertens` library and five executables are targets of the root
 `lakefile.toml`. Run these from the repository root:
 
 ```console
@@ -404,6 +406,7 @@ $ lake build BirdMeertens                    # every derivation (also built by `
 $ lake exe kadane_bench                      # time every line of the Kadane derivation, plot to bird-meertens/bench
 $ lake exe kadane_diagrams                   # draw each law of the Kadane derivation, in bird-meertens/diagrams
 $ lake exe adder_diagrams                    # draw each step of the adder refinement, in bird-meertens/diagrams
+$ lake exe crc_diagrams                      # draw each step of the CRC derivation, in bird-meertens/diagrams
 $ lake exe adder_netlist                     # the derived 32-bit adder as Verilog, in bird-meertens/netlist
 $ make -C bird-meertens/netlist lint equiv   # Verilator lint, and a Yosys SAT proof that the netlist adds
 ```
